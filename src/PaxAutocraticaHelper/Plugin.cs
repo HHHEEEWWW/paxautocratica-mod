@@ -6,13 +6,12 @@ using Il2CppInterop.Runtime.Injection;
 
 namespace PaxAutocraticaHelper;
 
-[BepInPlugin("com.hhewww.paxautocraticahelper", "PaxAutocraticaHelper", "0.5.1")]
+[BepInPlugin("com.hhewww.paxautocraticahelper", "PaxAutocraticaHelper", "0.5.5-dev")]
 [BepInProcess("Pax Autocratica.exe")]
 public class PaxPlugin : BasePlugin
 {
     internal new static ManualLogSource Log = null!;
     internal static bool ShowWindow = true;
-    internal static float LastCmdTime;
 
     /// <summary>转发到 CheatConsoleExecutor（面板/快捷键入口） */
     internal static void Exec(string command) => CheatConsoleExecutor.Exec(command);
@@ -20,7 +19,7 @@ public class PaxPlugin : BasePlugin
     public override void Load()
     {
         Log = base.Log;
-        Log.LogInfo("PaxAutocraticaHelper 0.5.1 loading (soldier-panel + hotkeys).");
+        Log.LogInfo("PaxAutocraticaHelper 0.5.5-dev loading (affix explore debug).");
 
         // 1. 配置体系（管理器可表单化编辑）
         ModConfig.Init(Config);

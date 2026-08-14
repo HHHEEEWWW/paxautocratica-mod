@@ -7,106 +7,112 @@
     <AssemblyName>PaxAutocraticaHelper</AssemblyName>
     <RootNamespace>PaxAutocraticaHelper</RootNamespace>
     <EnableDynamicLoading>true</EnableDynamicLoading>
+    <!--
+      BepInEx root used by all references.
+      Default: game-dir fallback; build.ps1 passes -p:BepDir=... with the active
+      isolated profile path (BepInEx-Manager plugin-library) when in isolated mode.
+    -->
+    <BepDir Condition="'$(BepDir)' == ''">E:\steam\steamapps\common\Pax Autocratica\BepInEx</BepDir>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- BepInEx 6 核心 -->
     <Reference Include="BepInEx.Core">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\core\BepInEx.Core.dll</HintPath>
+      <HintPath>$(BepDir)\core\BepInEx.Core.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="BepInEx.Unity.IL2CPP">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\core\BepInEx.Unity.IL2CPP.dll</HintPath>
+      <HintPath>$(BepDir)\core\BepInEx.Unity.IL2CPP.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="0Harmony">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\core\0Harmony.dll</HintPath>
+      <HintPath>$(BepDir)\core\0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Il2CppInterop.Runtime">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\core\Il2CppInterop.Runtime.dll</HintPath>
+      <HintPath>$(BepDir)\core\Il2CppInterop.Runtime.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Il2CppInterop.HarmonySupport">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\core\Il2CppInterop.HarmonySupport.dll</HintPath>
+      <HintPath>$(BepDir)\core\Il2CppInterop.HarmonySupport.dll</HintPath>
       <Private>false</Private>
     </Reference>
 
     <!-- UnityEngine（interop 生成） -->
     <Reference Include="UnityEngine">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\UnityEngine.dll</HintPath>
+      <HintPath>$(BepDir)\interop\UnityEngine.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>$(BepDir)\interop\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\UnityEngine.IMGUIModule.dll</HintPath>
+      <HintPath>$(BepDir)\interop\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\UnityEngine.InputLegacyModule.dll</HintPath>
+      <HintPath>$(BepDir)\interop\UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\UnityEngine.TextRenderingModule.dll</HintPath>
+      <HintPath>$(BepDir)\interop\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
 
     <!-- Il2Cpp 基础库 -->
     <Reference Include="Il2CppSystem.Core">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\Il2CppSystem.Core.dll</HintPath>
+      <HintPath>$(BepDir)\interop\Il2CppSystem.Core.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Il2Cppmscorlib">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\Il2Cppmscorlib.dll</HintPath>
+      <HintPath>$(BepDir)\interop\Il2Cppmscorlib.dll</HintPath>
       <Private>false</Private>
     </Reference>
 
     <!-- 游戏程序集 -->
     <Reference Include="Assembly-CSharp">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\Assembly-CSharp.dll</HintPath>
+      <HintPath>$(BepDir)\interop\Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="GlobalStatics">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\GlobalStatics.dll</HintPath>
+      <HintPath>$(BepDir)\interop\GlobalStatics.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="DelegateWarp">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\DelegateWarp.dll</HintPath>
+      <HintPath>$(BepDir)\interop\DelegateWarp.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Efas.NpcSimulator">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\Efas.NpcSimulator.dll</HintPath>
+      <HintPath>$(BepDir)\interop\Efas.NpcSimulator.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="EFAS.GameTime">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\EFAS.GameTime.dll</HintPath>
+      <HintPath>$(BepDir)\interop\EFAS.GameTime.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="EFAS.UIFramework">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\EFAS.UIFramework.dll</HintPath>
+      <HintPath>$(BepDir)\interop\EFAS.UIFramework.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="EFAS.UI.Meta">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\EFAS.UI.Meta.dll</HintPath>
+      <HintPath>$(BepDir)\interop\EFAS.UI.Meta.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="EFAS.Item">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\EFAS.Item.dll</HintPath>
+      <HintPath>$(BepDir)\interop\EFAS.Item.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="EFAS.Common">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\EFAS.Common.dll</HintPath>
+      <HintPath>$(BepDir)\interop\EFAS.Common.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="EFAS.Utils">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\EFAS.Utils.dll</HintPath>
+      <HintPath>$(BepDir)\interop\EFAS.Utils.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="EFAS.Npc">
-      <HintPath>E:\steam\steamapps\common\Pax Autocratica\BepInEx\interop\EFAS.Npc.dll</HintPath>
+      <HintPath>$(BepDir)\interop\EFAS.Npc.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

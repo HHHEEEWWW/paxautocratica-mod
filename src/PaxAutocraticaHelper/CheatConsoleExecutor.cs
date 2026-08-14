@@ -19,6 +19,10 @@ internal static class CheatConsoleExecutor
     /// <summary>方法缓存：方法名 -> (参数个数 -> MethodInfo)</summary>
     private static readonly Dictionary<string, Dictionary<int, MethodInfo>> _cache = new();
 
+    /// <summary>上次执行的命令与时间（相同命令限频用）</summary>
+    private static string? _lastCommand;
+    private static float _lastCmdTime;
+
     /// <summary>执行 CheatConsole.<paramref name="methodName"/>，参数自动做类型转换 */
     internal static bool RunCommand(string methodName, object[]? args)
     {
@@ -155,10 +159,12 @@ internal static class CheatConsoleExecutor
     /// </summary>
     internal static void Exec(string command)
     {
-        // 限频：0.3 秒内重复命令忽略（原版行为）
+        // 限频：相同命令 0.3 秒内重复忽略（原版行为）；
+        // 不同命令不限制——否则快捷键连按（如 Ctrl+5 后立刻 Ctrl+6）会被吞掉
         var now = Time.realtimeSinceStartup;
-        if (now - PaxPlugin.LastCmdTime < 0.3f) return;
-        PaxPlugin.LastCmdTime = now;
+        if (command == _lastCommand && now - _lastCmdTime < 0.3f) return;
+        _lastCommand = command;
+        _lastCmdTime = now;
 
         if (command.StartsWith("SetTimeScale ", StringComparison.Ordinal))
         {

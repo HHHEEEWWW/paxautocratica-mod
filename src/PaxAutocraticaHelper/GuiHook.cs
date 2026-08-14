@@ -13,6 +13,21 @@ internal static class GuiHook
     private static Vector2 _scrollPos;
     private static Vector2 _soldierListScroll;
 
+    /// <summary>面板不透明背景色（避免与游戏画面重叠混淆）</summary>
+    private static readonly Color PanelBgColor = new(0.09f, 0.09f, 0.13f, 0.97f);
+    private static Texture2D? _panelBgTex;
+
+    private static Texture2D PanelBgTexture()
+    {
+        if (_panelBgTex == null)
+        {
+            _panelBgTex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            _panelBgTex.SetPixel(0, 0, PanelBgColor);
+            _panelBgTex.Apply();
+        }
+        return _panelBgTex;
+    }
+
     internal static void DrawPanel()
     {
         if (!ModConfig.PanelEnabled.Value) return;
@@ -31,15 +46,34 @@ internal static class GuiHook
             var width = ModConfig.PanelWidth.Value;
             var height = ModConfig.PanelHeight.Value;
             GUILayout.BeginArea(new Rect(ModConfig.PanelX.Value, ModConfig.PanelY.Value, width, height), GUIContent.none, GUI.skin.box);
+            // 不透明背景垫底：整个面板区域（含滚动区）不再透出游戏画面
+            GUI.DrawTexture(new Rect(0f, 0f, width, height), PanelBgTexture(), ScaleMode.StretchToFill);
             _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Width(width), GUILayout.Height(height));
 
             GUILayout.Label("<b>士兵管理面板</b>");
             GUILayout.Space(4f);
 
+            // ===== 快捷键说明（面板上方常驻） =====
+            GUILayout.Label("<b>══ 快捷键说明 ══</b>");
+            GUILayout.Label("F1：开关士兵管理面板");
+            GUILayout.Label("Ctrl+1：时间 2 倍速");
+            GUILayout.Label("Ctrl+2：时间 5 倍速");
+            GUILayout.Label("Ctrl+3：时间 10 倍速");
+            GUILayout.Label("Ctrl+4：时间恢复 1 倍速");
+            GUILayout.Label("Ctrl+5：完成所有研究");
+            GUILayout.Label("Ctrl+6：自动保存");
+            if (ModConfig.CheatSectionVisible.Value)
+            {
+                GUILayout.Label("Ctrl+7：God Mode（无敌）");
+                GUILayout.Label("Ctrl+8：Daddy Mode");
+                GUILayout.Label("Ctrl+9：免费制造");
+            }
+            GUILayout.Label("Ctrl+0：智能自动分配");
+            GUILayout.Space(4f);
+
             // ===== 士兵列表 =====
             GUILayout.Label("<b>══ 士兵列表 ══</b>");
             GUILayout.Label($"共 {SoldierManager.SoldierEntries.Count} 名（点击选中并载入属性）");
-            SoldierManager.RefreshSoldierList();
             _soldierListScroll = GUILayout.BeginScrollView(_soldierListScroll, GUILayout.Height(120f));
             foreach (var entry in SoldierManager.SoldierEntries)
             {
@@ -91,6 +125,11 @@ internal static class GuiHook
             SoldierManager.LoggingSpeedText = GUILayout.TextField(SoldierManager.LoggingSpeedText, GUILayout.Width(54f));
             SoldierManager.CookingSpeedText = GUILayout.TextField(SoldierManager.CookingSpeedText, GUILayout.Width(54f));
             SoldierManager.BreedingSpeedText = GUILayout.TextField(SoldierManager.BreedingSpeedText, GUILayout.Width(54f));
+            GUILayout.EndHorizontal();
+
+            GUILayout.Label("采摘速度");
+            GUILayout.BeginHorizontal();
+            SoldierManager.GatherFoodSpeedText = GUILayout.TextField(SoldierManager.GatherFoodSpeedText, GUILayout.Width(60f));
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();

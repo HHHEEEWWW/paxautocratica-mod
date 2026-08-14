@@ -28,6 +28,7 @@ internal static class SoldierManager
     private static bool _pendingCopy;
     private static NpcAttribute? _copySource;
     private static float _copyStartTime;
+    private static long _maxIdBeforeCopy;
 
     internal static readonly List<SoldierEntry> SoldierEntries = new();
 
@@ -57,6 +58,12 @@ internal static class SoldierManager
 
     // ================= 列表 =================
 
+    /// <summary>重置列表刷新冷却，使下一次绘制立即刷新（复制完成/打开面板时调用）</summary>
+    internal static void ForceListRefresh()
+    {
+        _listRefreshTimer = 0f;
+    }
+
     internal static void RefreshSoldierList()
     {
         try
@@ -64,7 +71,6 @@ internal static class SoldierManager
             var interval = ModConfig.SoldierListRefreshInterval.Value;
             if (interval <= 0f || Time.realtimeSinceStartup - _listRefreshTimer < interval) return;
             _listRefreshTimer = Time.realtimeSinceStartup;
-
             SoldierEntries.Clear();
             var dic = NpcSimulatorManager.NpcAttributeDic;
             if (dic == null) return;
@@ -72,12 +78,14 @@ internal static class SoldierManager
             var il2cppDic = ((Il2CppObjectBase)dic).Cast<Il2CppSystem.Collections.Generic.Dictionary<long, NpcAttribute>>();
             if (il2cppDic == null) return;
 
+            var currentStillExists = false;
             var enumerator = il2cppDic.GetEnumerator();
             while (enumerator.MoveNext())
             {
                 var value = enumerator.Current.Value;
                 if (value != null)
                 {
+                    if (enumerator.Current.Key == CurrentDetailNpcId) currentStillExists = true;
                     SoldierEntries.Add(new SoldierEntry
                     {
                         Id = enumerator.Current.Key,
@@ -86,6 +94,15 @@ internal static class SoldierManager
                 }
             }
             SoldierEntries.Sort((a, b) => string.Compare(a.Label, b.Label, StringComparison.Ordinal));
+
+            // 当前选中的士兵已从字典消失（流放/死亡等）→ 清空详情，防止操作已不存在的对象
+            if (!currentStillExists && CurrentDetailNpc != null)
+            {
+                CurrentDetailNpc = null;
+                CurrentDetailNpcId = 0;
+                StatusText = "当前士兵已不在（可能已流放/死亡）";
+                PaxPlugin.Log.LogInfo("[Soldier] 当前选中士兵已从字典消失，已清空详情");
+            }
         }
         catch (Exception ex)
         {
@@ -242,6 +259,30 @@ internal static class SoldierManager
 
     // ================= 复制士兵 =================
 
+    /// <summary>当前 NPC 字典中最大的 Id（复制前快照，用于识别 AddPeople 新兵）</summary>
+    private static long GetMaxNpcId()
+    {
+        try
+        {
+            var dic = NpcSimulatorManager.NpcAttributeDic;
+            if (dic == null) return 0;
+            var il2cppDic = ((Il2CppObjectBase)dic).Cast<Il2CppSystem.Collections.Generic.Dictionary<long, NpcAttribute>>();
+            if (il2cppDic == null) return 0;
+            long max = 0;
+            var enumerator = il2cppDic.GetEnumerator();
+            while (enumerator.MoveNext())
+            {
+                if (enumerator.Current.Key > max) max = enumerator.Current.Key;
+            }
+            return max;
+        }
+        catch (Exception ex)
+        {
+            PaxPlugin.Log.LogError($"[Soldier] GetMaxNpcId: {ex}");
+            return 0;
+        }
+    }
+
     internal static void CopyCurrentSoldier()
     {
         try
@@ -257,11 +298,28 @@ internal static class SoldierManager
             _copySource = src;
             _pendingCopy = true;
             _copyStartTime = Time.realtimeSinceStartup;
+            // 记录复制前 NPC 最大 Id，用于区分 AddPeople 生成的新兵
+            _maxIdBeforeCopy = GetMaxNpcId();
+
+            // 调试：打印源士兵特质列表（正式版移除）
+            if (src.AffixList != null)
+            {
+                var sb = new System.Text.StringBuilder("[AffixDump] 源 AffixList: ");
+                var e = src.AffixList.GetEnumerator();
+                while (e.MoveNext()) sb.Append($"{e.Current},");
+                PaxPlugin.Log.LogInfo(sb.ToString());
+            }
 
             if (!CheatConsoleExecutor.RunCommand("AddPeople", new object[] { src.EfasItem, src.GenderType, src.Age, 1 }))
             {
                 _pendingCopy = false;
                 StatusText = "AddPeople 调用失败（控制台未就绪？）";
+                return;
+            }
+
+            // 同步路径：AddPeople 为同步命令，返回后立即查找新增 NPC（绝大多数情况在此命中）
+            if (TryCaptureNewNpc())
+            {
                 return;
             }
             StatusText = $"正在复制 {src.Name} …";
@@ -274,6 +332,42 @@ internal static class SoldierManager
         }
     }
 
+    /// <summary>
+    /// 在 NPC 字典中查找 Id 大于复制前最大值的 NPC 并执行复制；找到返回 true。
+    /// 此时游戏内新增 NPC 几乎必然是本次 AddPeople 的产物，直接复制其全部属性。
+    /// </summary>
+    private static bool TryCaptureNewNpc()
+    {
+        try
+        {
+            var dic = NpcSimulatorManager.NpcAttributeDic;
+            if (dic == null || _copySource == null) return false;
+            var il2cppDic = ((Il2CppObjectBase)dic).Cast<Il2CppSystem.Collections.Generic.Dictionary<long, NpcAttribute>>();
+            if (il2cppDic == null) return false;
+
+            var enumerator = il2cppDic.GetEnumerator();
+            while (enumerator.MoveNext())
+            {
+                var npc = enumerator.Current.Value;
+                if (npc == null || npc.Id <= _maxIdBeforeCopy || npc.Id == _copySource.Id) continue;
+
+                _pendingCopy = false;
+                CopyAttributes(_copySource, npc);
+                PaxPlugin.Log.LogInfo($"[Soldier] 复制完成(同步): 新士兵 id={npc.Id} name={npc.Name}（源 {_copySource.Name}）");
+                NpcSimulatorManager.OnNpcBehaviourChanged?.Invoke(npc.Id);
+                StatusText = $"已复制: {_copySource.Name} → {npc.Name} (id={npc.Id})";
+                // 新兵立即出现在列表中（不等 2 秒刷新冷却）
+                ForceListRefresh();
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            PaxPlugin.Log.LogError($"[Soldier] TryCaptureNewNpc: {ex}");
+        }
+        return false;
+    }
+
     [HarmonyPatch(typeof(NpcSimulatorManager), "AddNpcAttribute")]
     [HarmonyPostfix]
     private static void OnNpcAttributeAdded(NpcAttribute _attribute)
@@ -281,8 +375,8 @@ internal static class SoldierManager
         try
         {
             if (!_pendingCopy) return;
-            // 复制等待超时（10 秒）
-            if (Time.realtimeSinceStartup - _copyStartTime > 10f)
+            // 复制等待超时（3 秒；同步路径已处理绝大多数情况，这里仅兜底异步生成）
+            if (Time.realtimeSinceStartup - _copyStartTime > 3f)
             {
                 _pendingCopy = false;
                 PaxPlugin.Log.LogWarning("[Soldier] 复制等待超时，已取消");
@@ -291,11 +385,17 @@ internal static class SoldierManager
             }
             if (_attribute == null || _copySource == null || _attribute.Id == _copySource.Id) return;
 
+            // 兜底：只认 Id 大于复制前最大值的 NPC（新兵生成瞬间属性可能尚未初始化，
+            // 不做职业/性别/年龄匹配——同步路径已保证绝大多数情况命中正确目标）
+            if (_attribute.Id <= _maxIdBeforeCopy) return;
+
             _pendingCopy = false;
             CopyAttributes(_copySource, _attribute);
             PaxPlugin.Log.LogInfo($"[Soldier] 复制完成: 新士兵 id={_attribute.Id} name={_attribute.Name}（源 {_copySource.Name}）");
             NpcSimulatorManager.OnNpcBehaviourChanged?.Invoke(_attribute.Id);
             StatusText = $"已复制: {_copySource.Name} → {_attribute.Name} (id={_attribute.Id})";
+            // 新兵立即出现在列表中
+            ForceListRefresh();
         }
         catch (Exception ex)
         {
