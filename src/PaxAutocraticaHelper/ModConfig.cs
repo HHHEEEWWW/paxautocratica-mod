@@ -24,16 +24,6 @@ internal static class ModConfig
     internal static ConfigEntry<float> SoldierPollInterval;
     internal static ConfigEntry<float> SoldierListRefreshInterval;
 
-    // ===== 机器人强化 =====
-    internal static ConfigEntry<bool> RobotBoostEnabled;
-    internal static ConfigEntry<int> RobotEfasItem;
-    internal static ConfigEntry<int> RobotBoostStamina;
-    internal static ConfigEntry<int> RobotBoostFullness;
-    internal static ConfigEntry<int> RobotBoostMood;
-    internal static ConfigEntry<int> RobotBoostSupport;
-    internal static ConfigEntry<int> RobotBoostFear;
-    internal static ConfigEntry<uint> RobotBoostMinLevel;
-
     // ===== 作弊（默认隐藏） =====
     internal static ConfigEntry<bool> CheatGodMode;
     internal static ConfigEntry<bool> CheatDaddyMode;
@@ -60,16 +50,6 @@ internal static class ModConfig
         AutoAssignInterval = cfg.Bind("自动行为", "自动分配间隔(秒)", 60f, "每隔多久自动触发一次全局人员自动分配（0 = 关闭）");
         SoldierPollInterval = cfg.Bind("自动行为", "士兵轮询间隔(秒)", 0.5f, "每隔多久轮询一次当前查看的士兵并同步面板");
         SoldierListRefreshInterval = cfg.Bind("自动行为", "士兵列表刷新间隔(秒)", 2f, "士兵列表的刷新冷却时间");
-
-        // ===== 机器人强化 =====
-        RobotBoostEnabled = cfg.Bind("机器人强化", "启用", true, "新生成/读取的机器人是否自动强化属性");
-        RobotEfasItem = cfg.Bind("机器人强化", "机器人种族ID", 459, "被视为机器人的 EfasItem 种族 ID");
-        RobotBoostStamina = cfg.Bind("机器人强化", "体力", 100, "强化后体力值");
-        RobotBoostFullness = cfg.Bind("机器人强化", "饱食", 100, "强化后饱食值");
-        RobotBoostMood = cfg.Bind("机器人强化", "心情", 100, "强化后心情值");
-        RobotBoostSupport = cfg.Bind("机器人强化", "支持", 100, "强化后支持值");
-        RobotBoostFear = cfg.Bind("机器人强化", "恐惧", 0, "强化后恐惧值");
-        RobotBoostMinLevel = cfg.Bind("机器人强化", "最低等级", 100u, "强化后至少达到的等级");
 
         // ===== 作弊（默认隐藏） =====
         CheatGodMode = cfg.Bind("作弊", "God Mode", false, "面板显示 God Mode 按钮");
