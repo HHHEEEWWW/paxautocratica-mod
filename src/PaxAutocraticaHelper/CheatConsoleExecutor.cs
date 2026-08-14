@@ -31,31 +31,31 @@ internal static class CheatConsoleExecutor
                 return false;
             }
 
-            // 通过 Dics 找到 CheatConsole 实例（原版逻辑：MethodTarget 持有 obj）
-            Il2CppObjectBase? instance = null;
+            // 通过 Dics 找到执行目标对象（原版逻辑：MethodTarget.obj 持有对象实例）
+            Il2CppObjectBase? rawObj = null;
             foreach (var kv in self.Dics)
             {
                 if (kv.Value.Name == "CheatConsole." + methodName)
                 {
-                    instance = kv.Value.obj as Il2CppObjectBase;
+                    rawObj = kv.Value.obj as Il2CppObjectBase;
                     break;
                 }
             }
-            if (instance == null)
+            if (rawObj == null)
             {
                 // 兜底：Dics 里 Name 可能不含前缀
                 foreach (var kv in self.Dics)
                 {
                     if (kv.Value.Name == methodName)
                     {
-                        instance = kv.Value.obj as Il2CppObjectBase;
+                        rawObj = kv.Value.obj as Il2CppObjectBase;
                         break;
                     }
                 }
             }
-            if (instance == null)
+            if (rawObj == null)
             {
-                PaxPlugin.Log.LogError($"RunCommand: CheatConsole instance not found for {methodName}");
+                PaxPlugin.Log.LogError($"RunCommand: target object not found for {methodName}");
                 return false;
             }
 
@@ -66,8 +66,11 @@ internal static class CheatConsoleExecutor
                 return false;
             }
 
+            // 关键：必须 Cast 成 CheatConsole 类型再 Invoke，
+            // 否则反射 TargetException: Object does not match target type
+            var console = rawObj.Cast<CheatConsole>();
             var converted = ConvertArgs(args, method);
-            method.Invoke(instance, converted);
+            method.Invoke(console, converted);
             PaxPlugin.Log.LogInfo($"CheatConsole.{methodName} executed.");
             return true;
         }

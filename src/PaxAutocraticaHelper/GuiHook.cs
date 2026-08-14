@@ -1,11 +1,12 @@
 using System;
-using Multiverse.EFAS.NpcSimulator;
 using UnityEngine;
 
 namespace PaxAutocraticaHelper;
 
 /// <summary>
-/// 游戏内便利面板（IMGUI）。布局/数值全部配置化，作弊按钮默认隐藏。
+/// 游戏内士兵管理面板（IMGUI）。
+/// 按需求精简：面板只做士兵管理；其他功能（时间加速/建筑效率/研究/作弊等）
+/// 全部通过快捷键使用（见 README 快捷键表）。
 /// </summary>
 internal static class GuiHook
 {
@@ -32,14 +33,14 @@ internal static class GuiHook
             GUILayout.BeginArea(new Rect(ModConfig.PanelX.Value, ModConfig.PanelY.Value, width, height), GUIContent.none, GUI.skin.box);
             _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Width(width), GUILayout.Height(height));
 
-            GUILayout.Label("<b>暗星铁律 便利面板</b>");
+            GUILayout.Label("<b>士兵管理面板</b>");
             GUILayout.Space(4f);
 
-            // ===== 士兵管理 =====
-            GUILayout.Label("<b>══ 士兵管理 ══</b>");
-            GUILayout.Label($"士兵列表（{SoldierManager.SoldierEntries.Count}）");
+            // ===== 士兵列表 =====
+            GUILayout.Label("<b>══ 士兵列表 ══</b>");
+            GUILayout.Label($"共 {SoldierManager.SoldierEntries.Count} 名（点击选中并载入属性）");
             SoldierManager.RefreshSoldierList();
-            _soldierListScroll = GUILayout.BeginScrollView(_soldierListScroll, GUILayout.Height(110f));
+            _soldierListScroll = GUILayout.BeginScrollView(_soldierListScroll, GUILayout.Height(120f));
             foreach (var entry in SoldierManager.SoldierEntries)
             {
                 if (GUILayout.Button(entry.Label, GUILayout.Height(22f)))
@@ -52,11 +53,6 @@ internal static class GuiHook
             var detail = SoldierManager.CurrentDetailNpc;
             var detailText = detail == null ? "（未选择士兵）" : $"{detail.Name}  Lv.{detail.Level}  id={detail.Id}";
             GUILayout.Label("当前: " + detailText);
-
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("复制当前士兵 (F2)", GUILayout.Height(24f))) SoldierManager.CopyCurrentSoldier();
-            if (GUILayout.Button("同步到面板", GUILayout.Height(24f))) SoldierManager.SyncPanelFromCurrent();
-            GUILayout.EndHorizontal();
 
             GUILayout.Space(2f);
             GUILayout.Label("等级 / 经验");
@@ -97,83 +93,20 @@ internal static class GuiHook
             SoldierManager.BreedingSpeedText = GUILayout.TextField(SoldierManager.BreedingSpeedText, GUILayout.Width(54f));
             GUILayout.EndHorizontal();
 
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("复制当前士兵 (F2)", GUILayout.Height(24f))) SoldierManager.CopyCurrentSoldier();
             if (GUILayout.Button("应用属性 (F3)", GUILayout.Height(24f))) SoldierManager.ApplyAttributes();
+            GUILayout.EndHorizontal();
+
             if (!string.IsNullOrEmpty(SoldierManager.StatusText))
             {
                 GUILayout.Label($"<color=yellow>{SoldierManager.StatusText}</color>");
             }
 
             GUILayout.Space(6f);
-            GUILayout.Label("— — — — 其他功能 — — — —");
-            GUILayout.Space(2f);
-
-            // 时间加速
-            GUILayout.Label("时间加速 (SetTimeScale)");
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("1x")) PaxPlugin.Exec("SetTimeScale 1");
-            if (GUILayout.Button("2x")) PaxPlugin.Exec("SetTimeScale 2");
-            if (GUILayout.Button("5x")) PaxPlugin.Exec("SetTimeScale 5");
-            if (GUILayout.Button("10x")) PaxPlugin.Exec("SetTimeScale 10");
-            GUILayout.EndHorizontal();
-
-            // 建筑效率
-            GUILayout.Label("建筑效率倍率 (BuildingWorkDebug)");
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("x1")) PaxPlugin.Exec("BuildingWorkDebug 1");
-            if (GUILayout.Button("x5")) PaxPlugin.Exec("BuildingWorkDebug 5");
-            if (GUILayout.Button("x10")) PaxPlugin.Exec("BuildingWorkDebug 10");
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("完成所有研究")) PaxPlugin.Exec("CompleteAllResearching");
-            if (GUILayout.Button("自动保存")) PaxPlugin.Exec("AutoSave");
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("生成机器人 (Ctrl+`)")) NpcAutoAssign.SpawnRobots(ModConfig.RobotSpawnCount.Value);
-            if (GUILayout.Button("智能自动分配 (Ctrl+0)")) NpcAutoAssign.AutoAssignAll();
-            GUILayout.EndHorizontal();
-
-            // ===== 作弊区（默认隐藏，配置开启后显示） =====
-            if (ModConfig.CheatSectionVisible.Value)
-            {
-                GUILayout.Space(6f);
-                GUILayout.Label("<color=orange>══ 作弊功能 ══</color>");
-                GUILayout.BeginHorizontal();
-                if (GUILayout.Button("免费制造 开")) PaxPlugin.Exec("CraftNoConsume 1");
-                if (GUILayout.Button("免费制造 关")) PaxPlugin.Exec("CraftNoConsume 0");
-                GUILayout.EndHorizontal();
-                if (ModConfig.CheatAllDestruction.Value)
-                {
-                    GUILayout.BeginHorizontal();
-                    if (GUILayout.Button("可拆所有建筑 开")) PaxPlugin.Exec("CraftDebugAllDestruction 1");
-                    if (GUILayout.Button("可拆所有建筑 关")) PaxPlugin.Exec("CraftDebugAllDestruction 0");
-                    GUILayout.EndHorizontal();
-                }
-                if (ModConfig.CheatGodMode.Value)
-                {
-                    GUILayout.BeginHorizontal();
-                    if (GUILayout.Button("GOD MODE")) PaxPlugin.Exec("TestGod");
-                    if (GUILayout.Button("Daddy mode")) PaxPlugin.Exec("TestDaddy");
-                    GUILayout.EndHorizontal();
-                }
-                if (ModConfig.CheatStopAi.Value)
-                {
-                    GUILayout.BeginHorizontal();
-                    if (GUILayout.Button("停止敌军AI")) PaxPlugin.Exec("SetStopAiThink 1");
-                    if (GUILayout.Button("恢复AI")) PaxPlugin.Exec("SetStopAiThink -1");
-                    GUILayout.EndHorizontal();
-                }
-                if (ModConfig.CheatUnlockCivilian.Value)
-                {
-                    GUILayout.BeginHorizontal();
-                    if (GUILayout.Button("解锁平民")) PaxPlugin.Exec("UnlockCivilian");
-                    GUILayout.EndHorizontal();
-                }
-            }
-
+            GUILayout.Label("<color=grey>选中士兵后属性自动同步到上方输入框，改完点「应用属性」生效</color>");
             GUILayout.Space(8f);
-            GUILayout.Label("<color=grey>F1 开关面板 · Ctrl+1~9 快捷键 · 配置见 BepInEx/config</color>");
+            GUILayout.Label("<color=grey>F1 开关面板 · 其他功能见快捷键（Ctrl+1~0）</color>");
             GUILayout.EndScrollView();
             GUILayout.EndArea();
         }

@@ -5,7 +5,8 @@ using Multiverse.EFAS.NpcSimulator;
 namespace PaxAutocraticaHelper;
 
 /// <summary>
-/// NPC 自动分配与机器人生成（间隔/数量配置化）。
+/// NPC 自动分配（间隔配置化）。
+/// 注：机器人生成功能已按需求移除（v0.5.0）。
 /// </summary>
 internal static class NpcAutoAssign
 {
@@ -32,21 +33,6 @@ internal static class NpcAutoAssign
         catch (Exception ex)
         {
             PaxPlugin.Log.LogError($"[AutoAssign] exception: {ex}");
-        }
-    }
-
-    /// <summary>生成机器人（EfasItem 由配置指定） */
-    internal static void SpawnRobots(int count)
-    {
-        try
-        {
-            var item = ModConfig.RobotEfasItem.Value;
-            var ok = CheatConsoleExecutor.RunCommand("AddPeople", new object[] { item, 0, 20, count });
-            PaxPlugin.Log.LogInfo($"[Robots] AddPeople({item},0,20,{count}) = {ok}");
-        }
-        catch (Exception ex)
-        {
-            PaxPlugin.Log.LogError($"[Robots] exception: {ex}");
         }
     }
 }

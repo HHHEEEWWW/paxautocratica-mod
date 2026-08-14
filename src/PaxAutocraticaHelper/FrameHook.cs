@@ -72,11 +72,6 @@ internal static class FrameHook
                 PaxPlugin.Log.LogInfo("Ctrl+0: 智能自动分配");
                 NpcAutoAssign.AutoAssignAll();
             }
-            else if (Input.GetKeyDown(KeyCode.BackQuote))
-            {
-                PaxPlugin.Log.LogInfo($"Ctrl+`: 创建 {ModConfig.RobotSpawnCount.Value} 个机器人员工");
-                NpcAutoAssign.SpawnRobots(ModConfig.RobotSpawnCount.Value);
-            }
         }
         catch (Exception ex)
         {

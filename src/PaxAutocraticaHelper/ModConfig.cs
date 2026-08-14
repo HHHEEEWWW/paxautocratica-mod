@@ -23,7 +23,6 @@ internal static class ModConfig
     internal static ConfigEntry<float> AutoAssignInterval;
     internal static ConfigEntry<float> SoldierPollInterval;
     internal static ConfigEntry<float> SoldierListRefreshInterval;
-    internal static ConfigEntry<int> RobotSpawnCount;
 
     // ===== 机器人强化 =====
     internal static ConfigEntry<bool> RobotBoostEnabled;
@@ -61,7 +60,6 @@ internal static class ModConfig
         AutoAssignInterval = cfg.Bind("自动行为", "自动分配间隔(秒)", 60f, "每隔多久自动触发一次全局人员自动分配（0 = 关闭）");
         SoldierPollInterval = cfg.Bind("自动行为", "士兵轮询间隔(秒)", 0.5f, "每隔多久轮询一次当前查看的士兵并同步面板");
         SoldierListRefreshInterval = cfg.Bind("自动行为", "士兵列表刷新间隔(秒)", 2f, "士兵列表的刷新冷却时间");
-        RobotSpawnCount = cfg.Bind("自动行为", "机器人生成数量", 5, "Ctrl+` 一次生成的机器人数");
 
         // ===== 机器人强化 =====
         RobotBoostEnabled = cfg.Bind("机器人强化", "启用", true, "新生成/读取的机器人是否自动强化属性");
