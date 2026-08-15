@@ -75,25 +75,53 @@ internal static class SoldierManager
             var dic = NpcSimulatorManager.NpcAttributeDic;
             if (dic == null) return;
 
-            var il2cppDic = ((Il2CppObjectBase)dic).Cast<Il2CppSystem.Collections.Generic.Dictionary<long, NpcAttribute>>();
-            if (il2cppDic == null) return;
-
             var currentStillExists = false;
-            var enumerator = il2cppDic.GetEnumerator();
-            while (enumerator.MoveNext())
+            var added = 0;
+            var skippedDead = 0;
+
+            // 路径 1：直接枚举 Il2Cpp 字典（常规）
+            var il2cppDic = ((Il2CppObjectBase)dic).Cast<Il2CppSystem.Collections.Generic.Dictionary<long, NpcAttribute>>();
+            if (il2cppDic != null)
             {
-                var value = enumerator.Current.Value;
-                if (value != null)
+                var enumerator = il2cppDic.GetEnumerator();
+                while (enumerator.MoveNext())
                 {
+                    var value = enumerator.Current.Value;
+                    if (value == null) continue;
+                    if (value.IsDead) { skippedDead++; continue; }
                     if (enumerator.Current.Key == CurrentDetailNpcId) currentStillExists = true;
                     SoldierEntries.Add(new SoldierEntry
                     {
                         Id = enumerator.Current.Key,
                         Label = $"{value.Name}  Lv.{value.Level}  职业:{value.EfasItem}"
                     });
+                    added++;
                 }
             }
+            else
+            {
+                // 路径 2（兜底）：NpcAttributeDic 暴露为 IReadOnlyDictionary 壳时，
+                // 反射枚举 Values（游戏更新后属性可能返回只读视图）
+                added = EnumerateNpcsReflect(dic, (id, value) =>
+                {
+                    if (value.IsDead) { skippedDead++; return; }
+                    if (id == CurrentDetailNpcId) currentStillExists = true;
+                    SoldierEntries.Add(new SoldierEntry
+                    {
+                        Id = id,
+                        Label = $"{value.Name}  Lv.{value.Level}  职业:{value.EfasItem}"
+                    });
+                });
+            }
+
             SoldierEntries.Sort((a, b) => string.Compare(a.Label, b.Label, StringComparison.Ordinal));
+
+            // 诊断（限频）：确认列表数据源与过滤情况
+            if (Time.realtimeSinceStartup - _lastListDiagLog > 30f)
+            {
+                _lastListDiagLog = Time.realtimeSinceStartup;
+                PaxPlugin.Log.LogInfo($"[Soldier] 列表刷新: 新增={added} 已过滤死亡={skippedDead} 总数={SoldierEntries.Count}");
+            }
 
             // 当前选中的士兵已从字典消失（流放/死亡等）→ 清空详情，防止操作已不存在的对象
             if (!currentStillExists && CurrentDetailNpc != null)
@@ -108,6 +136,55 @@ internal static class SoldierManager
         {
             PaxPlugin.Log.LogError($"[Soldier] RefreshSoldierList: {ex}");
         }
+    }
+
+    private static float _lastListDiagLog;
+
+    /// <summary>反射枚举 NPC 字典（IReadOnlyDictionary 壳兜底）；返回枚举条数</summary>
+    private static int EnumerateNpcsReflect(object dic, Action<long, NpcAttribute> onNpc)
+    {
+        var count = 0;
+        try
+        {
+            var rt = dic.GetType();
+            var valuesProp = rt.GetProperty("Values");
+            if (valuesProp == null) return 0;
+            var values = valuesProp.GetValue(dic);
+            if (values == null) return 0;
+            var vt = values.GetType();
+            var getEn = vt.GetMethod("GetEnumerator");
+            if (getEn == null) return 0;
+            var en = getEn.Invoke(values, null);
+            var et = en?.GetType();
+            var moveNext = et?.GetMethod("MoveNext");
+            var currentProp = et?.GetProperty("Current");
+            while (moveNext != null && (bool)(moveNext.Invoke(en, null) ?? false))
+            {
+                var cur = currentProp?.GetValue(en);
+                if (cur is NpcAttribute na)
+                {
+                    onNpc(na.Id, na);
+                    count++;
+                }
+                else if (cur != null)
+                {
+                    // KeyValuePair 包装：取 Value
+                    var vp = cur.GetType().GetProperty("Value");
+                    var vf = vp == null ? cur.GetType().GetField("Value") : null;
+                    var val = vp?.GetValue(cur) ?? vf?.GetValue(cur);
+                    if (val is NpcAttribute na2)
+                    {
+                        onNpc(na2.Id, na2);
+                        count++;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            PaxPlugin.Log.LogError($"[Soldier] EnumerateNpcsReflect: {ex.GetType().Name}: {ex.Message}");
+        }
+        return count;
     }
 
     // ================= 选择 =================
@@ -398,6 +475,19 @@ internal static class SoldierManager
     {
         dst.Level = src.Level;
         dst.Exp = src.Exp;
+        // 诊断：源士兵特质列表（验证过滤路径，正式版可移除）
+        try
+        {
+            var sb = new System.Text.StringBuilder("[Soldier] 复制源 AffixList=[");
+            if (src.AffixList != null)
+            {
+                var e = src.AffixList.GetEnumerator();
+                while (e.MoveNext()) sb.Append($"{e.Current},");
+            }
+            sb.Append("] NpcAffixData=").Append(src.NpcAffixData != null ? "present" : "null");
+            PaxPlugin.Log.LogInfo(sb.ToString());
+        }
+        catch { }
         CopyInt(src.Stamina, dst.Stamina);
         CopyInt(src.Fullness, dst.Fullness);
         CopyInt(src.Mood, dst.Mood);

@@ -49,6 +49,7 @@ internal static class AffixFilter
 
     private static bool _cacheBuilt;
     private static float _lastCacheAttempt;
+    private static bool _diagnosed;
 
     /// <summary>判定特质名是否为正面战斗类</summary>
     internal static bool IsPositiveCombatAffix(string name)
@@ -76,6 +77,11 @@ internal static class AffixFilter
         try
         {
             var objs = Resources.FindObjectsOfTypeAll<DataObjNpcAffix>();
+            if (!_diagnosed)
+            {
+                _diagnosed = true;
+                PaxPlugin.Log.LogInfo($"[AffixFilter] 配置表实例数: {objs?.Length ?? 0}（首次检查）");
+            }
             if (objs == null || objs.Length == 0) return null;
 
             foreach (var dataObj in objs)

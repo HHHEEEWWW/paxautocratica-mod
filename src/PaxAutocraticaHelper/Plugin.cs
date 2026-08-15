@@ -6,7 +6,7 @@ using Il2CppInterop.Runtime.Injection;
 
 namespace PaxAutocraticaHelper;
 
-[BepInPlugin("com.hhewww.paxautocraticahelper", "PaxAutocraticaHelper", "0.5.5")]
+[BepInPlugin("com.hhewww.paxautocraticahelper", "PaxAutocraticaHelper", "0.5.6")]
 [BepInProcess("Pax Autocratica.exe")]
 public class PaxPlugin : BasePlugin
 {
@@ -19,7 +19,7 @@ public class PaxPlugin : BasePlugin
     public override void Load()
     {
         Log = base.Log;
-        Log.LogInfo("PaxAutocraticaHelper 0.5.5 loading.");
+        Log.LogInfo("PaxAutocraticaHelper loading.");
 
         // 1. 配置体系（管理器可表单化编辑）
         ModConfig.Init(Config);

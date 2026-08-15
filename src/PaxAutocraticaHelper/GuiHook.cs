@@ -13,6 +13,12 @@ internal static class GuiHook
     private static Vector2 _scrollPos;
     private static Vector2 _soldierListScroll;
 
+    // ===== 面板拖动状态 =====
+    private static bool _dragging;
+    private static Vector2 _dragOffset;
+    /// <summary>标题栏高度（缩放前）</summary>
+    private const float TitleBarHeight = 26f;
+
     /// <summary>面板不透明背景色（避免与游戏画面重叠混淆）</summary>
     private static readonly Color PanelBgColor = new(0.09f, 0.09f, 0.13f, 0.97f);
     private static Texture2D? _panelBgTex;
@@ -45,15 +51,53 @@ internal static class GuiHook
 
             var width = ModConfig.PanelWidth.Value;
             var height = ModConfig.PanelHeight.Value;
+
+            // ===== 标题栏拖动 =====
+            // 注意：Event.mousePosition 在 GUI.matrix 缩放下是 GUI 空间坐标（屏幕坐标/scale），
+            // 面板 Rect 也是 GUI 空间坐标，两者直接比较。
+            var titleRect = new Rect(ModConfig.PanelX.Value, ModConfig.PanelY.Value, width, TitleBarHeight);
+            var ev = Event.current;
+            if (ev.type == EventType.MouseDown && ev.button == 0)
+            {
+                var hit = titleRect.Contains(ev.mousePosition);
+                PaxPlugin.Log.LogInfo($"[Gui] MouseDown at {ev.mousePosition} titleRect=({titleRect.x},{titleRect.y},{titleRect.width},{titleRect.height}) hit={hit} scale={scale}");
+                if (hit)
+                {
+                    _dragging = true;
+                    _dragOffset = ev.mousePosition - new Vector2(ModConfig.PanelX.Value, ModConfig.PanelY.Value);
+                    ev.Use();
+                }
+            }
+            else if (ev.type == EventType.MouseUp && _dragging)
+            {
+                _dragging = false;
+                ev.Use();
+                PaxPlugin.Log.LogInfo($"[Gui] 拖动结束 panel=({ModConfig.PanelX.Value},{ModConfig.PanelY.Value})");
+            }
+            // 拖动中：Input.mousePosition 是屏幕坐标（左下原点），转 GUI 空间（左上原点 / scale）
+            if (_dragging)
+            {
+                var im = Input.mousePosition;
+                var gx = im.x / scale;
+                var gy = (Screen.height - im.y) / scale;
+                var newX = Mathf.Max(0f, gx - _dragOffset.x);
+                var newY = Mathf.Max(0f, gy - _dragOffset.y);
+                newY = Mathf.Min(newY, Screen.height / scale - TitleBarHeight);
+                ModConfig.PanelX.Value = newX;
+                ModConfig.PanelY.Value = newY;
+            }
+
             GUILayout.BeginArea(new Rect(ModConfig.PanelX.Value, ModConfig.PanelY.Value, width, height), GUIContent.none, GUI.skin.box);
             // 不透明背景垫底：整个面板区域（含滚动区）不再透出游戏画面
             GUI.DrawTexture(new Rect(0f, 0f, width, height), PanelBgTexture(), ScaleMode.StretchToFill);
-            _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Width(width), GUILayout.Height(height));
+            // 标题栏（可拖动区域）
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("<b>士兵管理面板</b>（按住此处拖动）");
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            GUILayout.Space(2f);
+            _scrollPos = GUILayout.BeginScrollView(_scrollPos, GUILayout.Width(width), GUILayout.Height(height - TitleBarHeight - 6f));
 
-            GUILayout.Label("<b>士兵管理面板</b>");
-            GUILayout.Space(4f);
-
-            // ===== 快捷键说明（面板上方常驻） =====
             GUILayout.Label("<b>══ 快捷键说明 ══</b>");
             GUILayout.Label("F1：开关士兵管理面板");
             GUILayout.Label("Ctrl+1：时间 2 倍速");
