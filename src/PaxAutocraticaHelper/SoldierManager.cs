@@ -301,15 +301,6 @@ internal static class SoldierManager
             // 记录复制前 NPC 最大 Id，用于区分 AddPeople 生成的新兵
             _maxIdBeforeCopy = GetMaxNpcId();
 
-            // 调试：打印源士兵特质列表（正式版移除）
-            if (src.AffixList != null)
-            {
-                var sb = new System.Text.StringBuilder("[AffixDump] 源 AffixList: ");
-                var e = src.AffixList.GetEnumerator();
-                while (e.MoveNext()) sb.Append($"{e.Current},");
-                PaxPlugin.Log.LogInfo(sb.ToString());
-            }
-
             if (!CheatConsoleExecutor.RunCommand("AddPeople", new object[] { src.EfasItem, src.GenderType, src.Age, 1 }))
             {
                 _pendingCopy = false;
@@ -433,7 +424,20 @@ internal static class SoldierManager
             }
             dst.AffixList.Clear();
             var enumerator = src.AffixList.GetEnumerator();
-            while (enumerator.MoveNext()) dst.AffixList.Add(enumerator.Current);
+            while (enumerator.MoveNext())
+            {
+                var affixId = enumerator.Current;
+                var name = AffixFilter.GetAffixName(affixId);
+                if (name == null || AffixFilter.IsPositiveCombatAffix(name))
+                {
+                    // 配置表不可查（name==null）时保留原特质（降级安全）；可查时只保留正面战斗类
+                    dst.AffixList.Add(affixId);
+                }
+                else
+                {
+                    PaxPlugin.Log.LogInfo($"[Soldier] 过滤特质: id={affixId} name={name}（非正面战斗类，剔除）");
+                }
+            }
         }
     }
 

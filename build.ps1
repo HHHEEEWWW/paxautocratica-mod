@@ -26,6 +26,10 @@ if (-not (Test-Path "$BepDir\core\BepInEx.Core.dll")) {
 }
 
 $PluginDir = "$BepDir\plugins\PaxAutocraticaHelper"
+if (Test-Path $PluginDir -PathType Leaf) {
+    Remove-Item $PluginDir -Force
+}
+New-Item -ItemType Directory -Path $PluginDir -Force | Out-Null
 
 dotnet build "$Proj\src\PaxAutocraticaHelper\PaxAutocraticaHelper.csproj" -c Release -p:BepDir="$BepDir"
 if ($LASTEXITCODE -ne 0) { Write-Host 'BUILD FAILED'; exit 1 }

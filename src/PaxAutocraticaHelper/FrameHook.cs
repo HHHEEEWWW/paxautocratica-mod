@@ -21,9 +21,6 @@ internal static class FrameHook
         {
             var now = Time.realtimeSinceStartup;
 
-            // 特质数据自动探测（数据就绪后自动 dump 一次，用户无需操作）
-            AffixExplorer.AutoCheck();
-
             // 士兵列表后台定时刷新（独立于面板显示状态：
             // 不依赖 DrawPanel 帧循环，流放/新增士兵在面板外也持续同步）
             SoldierManager.RefreshSoldierList();
@@ -73,12 +70,6 @@ internal static class FrameHook
             {
                 PaxPlugin.Log.LogInfo("Ctrl+0: 智能自动分配");
                 NpcAutoAssign.AutoAssignAll();
-            }
-            else if (Input.GetKeyDown(KeyCode.F10))
-            {
-                // 调试：导出 NPC 特质配置表（正式版移除）
-                PaxPlugin.Log.LogInfo("[AffixDump] Ctrl+F10 pressed");
-                AffixExplorer.DumpAll();
             }
         }
         catch (Exception ex)
