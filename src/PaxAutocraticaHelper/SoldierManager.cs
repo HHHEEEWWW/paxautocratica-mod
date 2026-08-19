@@ -334,6 +334,95 @@ internal static class SoldierManager
         }
     }
 
+    /// <summary>
+    /// 立即从游戏当前选中同步到面板（F1 打开面板时调用）：
+    /// 优先读详情弹窗的 m_npcAttribute，其次读士兵管理页的 ViewDetailNpcId，
+    /// 无论 id 是否变化都刷新属性文本框。这样在游戏点谁、MOD 面板就跟谁，不用去列表翻名字。
+    /// </summary>
+    internal static void SyncFromGameNow()
+    {
+        try
+        {
+            var popup = UnityEngine.Object.FindObjectOfType<UIPopupSoldierDetail>();
+            if (popup != null)
+            {
+                var npc = Traverse.Create(popup).Field("m_npcAttribute").GetValue<NpcAttribute>();
+                if (npc != null && npc.Id > 0)
+                {
+                    CurrentDetailNpcId = npc.Id;
+                    CurrentDetailNpc = npc;
+                    PaxPlugin.Log.LogInfo($"[Soldier] 打开面板-详情弹窗: id={npc.Id} name={npc.Name}（已同步到面板）");
+                    SyncPanelFromCurrent();
+                    return;
+                }
+            }
+
+            var manager = UnityEngine.Object.FindObjectOfType<UIManagerSoldier>();
+            if (manager != null)
+            {
+                var data = Traverse.Create(manager).Field("m_managerData").GetValue<UISoldierManagerData>();
+                var id = data?.ViewDetailNpcId ?? 0;
+                if (id > 0 && NpcSimulatorManager.TryGetNpcData(id, out var npc, true) && npc != null)
+                {
+                    CurrentDetailNpcId = id;
+                    CurrentDetailNpc = npc;
+                    PaxPlugin.Log.LogInfo($"[Soldier] 打开面板-管理页: id={id} name={npc.Name}（已同步到面板）");
+                    SyncPanelFromCurrent();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            PaxPlugin.Log.LogError($"[Soldier] SyncFromGameNow: {ex}");
+        }
+    }
+
+    /// <summary>设置所有单位恐惧为 0（Ctrl+3）。遍历 NPC 字典，非死亡单位恐惧归零。</summary>
+    internal static void SetAllFearZero()
+    {
+        try
+        {
+            var dic = NpcSimulatorManager.NpcAttributeDic;
+            if (dic == null)
+            {
+                StatusText = "恐惧归零失败：NPC 字典未就绪";
+                return;
+            }
+
+            var count = 0;
+            void Clear(NpcAttribute npc)
+            {
+                if (npc == null || npc.IsDead) return;
+                if (npc.Fear != null) npc.Fear.Value = 0;
+                count++;
+            }
+
+            var il2cppDic = ((Il2CppObjectBase)dic).Cast<Il2CppSystem.Collections.Generic.Dictionary<long, NpcAttribute>>();
+            if (il2cppDic != null)
+            {
+                var enumerator = il2cppDic.GetEnumerator();
+                while (enumerator.MoveNext()) Clear(enumerator.Current.Value);
+            }
+            else
+            {
+                EnumerateNpcsReflect(dic, (id, npc) => Clear(npc));
+            }
+
+            // 通知游戏刷新当前选中的展示；面板同步
+            if (CurrentDetailNpc != null)
+            {
+                NpcSimulatorManager.OnNpcBehaviourChanged?.Invoke(CurrentDetailNpc.Id);
+                SyncPanelFromCurrent();
+            }
+            StatusText = $"已将全部单位恐惧归零（{count} 名）";
+            PaxPlugin.Log.LogInfo($"[Soldier] 所有单位恐惧置0: {count} 名");
+        }
+        catch (Exception ex)
+        {
+            PaxPlugin.Log.LogError($"[Soldier] SetAllFearZero: {ex}");
+        }
+    }
+
     // ================= 复制士兵 =================
 
     /// <summary>当前 NPC 字典中最大的 Id（复制前快照，用于识别 AddPeople 新兵）</summary>

@@ -100,19 +100,15 @@ internal static class GuiHook
 
             GUILayout.Label("<b>══ 快捷键说明 ══</b>");
             GUILayout.Label("F1：开关士兵管理面板");
-            GUILayout.Label("Ctrl+1：时间 2 倍速");
-            GUILayout.Label("Ctrl+2：时间 5 倍速");
-            GUILayout.Label("Ctrl+3：时间 10 倍速");
-            GUILayout.Label("Ctrl+4：时间恢复 1 倍速");
-            GUILayout.Label("Ctrl+5：完成所有研究");
-            GUILayout.Label("Ctrl+6：自动保存");
+            GUILayout.Label("Ctrl+1：时间倍速切换（1/2/5/10x）");
+            GUILayout.Label("Ctrl+2：完成所有研究");
+            GUILayout.Label("Ctrl+3：所有单位恐惧归零");
             if (ModConfig.CheatSectionVisible.Value)
             {
                 GUILayout.Label("Ctrl+7：God Mode（无敌）");
                 GUILayout.Label("Ctrl+8：Daddy Mode");
-                GUILayout.Label("Ctrl+9：免费制造");
             }
-            GUILayout.Label("Ctrl+0：智能自动分配");
+            GUILayout.Label("游戏士兵页点选任意单位后，属性自动同步到面板");
             GUILayout.Space(4f);
 
             // ===== 士兵列表 =====

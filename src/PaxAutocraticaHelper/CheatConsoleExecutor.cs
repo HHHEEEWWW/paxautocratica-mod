@@ -153,6 +153,27 @@ internal static class CheatConsoleExecutor
         return value;
     }
 
+    /// <summary>设置时间倍速：游戏时间（GameTimeManager）与 Unity 时间一起改。供快捷键调用。</summary>
+    internal static void SetTimeScale(float scale)
+    {
+        try
+        {
+            var gtm = GameTimeManager.Instance;
+            if (gtm != null)
+            {
+                gtm.TimeScale = scale;
+                gtm.SettingsTimeScale = scale;
+                PaxPlugin.Log.LogInfo($"GameTimeManager.TimeScale set to {scale}");
+            }
+        }
+        catch (Exception ex)
+        {
+            PaxPlugin.Log.LogError($"GameTimeManager set failed: {ex}");
+        }
+        Time.timeScale = scale;
+        PaxPlugin.Log.LogInfo($"Unity Time.timeScale set to {scale}");
+    }
+
     /// <summary>
     /// 解析面板/快捷键传入的命令字符串。
     /// "SetTimeScale 5" 特殊处理（游戏时间 + Unity 时间）；其余转为 CheatConsole 调用。
@@ -170,22 +191,7 @@ internal static class CheatConsoleExecutor
         {
             var text = command.Substring("SetTimeScale ".Length);
             var scale = float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var s) ? s : 1f;
-            try
-            {
-                var gtm = GameTimeManager.Instance;
-                if (gtm != null)
-                {
-                    gtm.TimeScale = scale;
-                    gtm.SettingsTimeScale = scale;
-                    PaxPlugin.Log.LogInfo($"GameTimeManager.TimeScale set to {scale}");
-                }
-            }
-            catch (Exception ex)
-            {
-                PaxPlugin.Log.LogError($"GameTimeManager set failed: {ex}");
-            }
-            Time.timeScale = scale;
-            PaxPlugin.Log.LogInfo($"Unity Time.timeScale set to {scale}");
+            SetTimeScale(scale);
             return;
         }
 

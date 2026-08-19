@@ -20,7 +20,6 @@ internal static class ModConfig
     internal static ConfigEntry<float> PanelShowDelay;
 
     // ===== 自动行为 =====
-    internal static ConfigEntry<float> AutoAssignInterval;
     internal static ConfigEntry<float> SoldierPollInterval;
     internal static ConfigEntry<float> SoldierListRefreshInterval;
 
@@ -28,7 +27,6 @@ internal static class ModConfig
     internal static ConfigEntry<bool> CheatGodMode;
     internal static ConfigEntry<bool> CheatDaddyMode;
     internal static ConfigEntry<bool> CheatStopAi;
-    internal static ConfigEntry<bool> CheatCraftNoConsume;
     internal static ConfigEntry<bool> CheatUnlockCivilian;
     internal static ConfigEntry<bool> CheatAllDestruction;
 
@@ -47,7 +45,6 @@ internal static class ModConfig
         PanelShowDelay = cfg.Bind("面板", "显示延迟(秒)", 8f, "游戏启动后多少秒才允许显示面板");
 
         // ===== 自动行为 =====
-        AutoAssignInterval = cfg.Bind("自动行为", "自动分配间隔(秒)", 60f, "每隔多久自动触发一次全局人员自动分配（0 = 关闭）");
         SoldierPollInterval = cfg.Bind("自动行为", "士兵轮询间隔(秒)", 0.5f, "每隔多久轮询一次当前查看的士兵并同步面板");
         SoldierListRefreshInterval = cfg.Bind("自动行为", "士兵列表刷新间隔(秒)", 2f, "士兵列表的刷新冷却时间");
 
@@ -55,7 +52,6 @@ internal static class ModConfig
         CheatGodMode = cfg.Bind("作弊", "God Mode", false, "面板显示 God Mode 按钮");
         CheatDaddyMode = cfg.Bind("作弊", "Daddy Mode", false, "面板显示 Daddy Mode 按钮");
         CheatStopAi = cfg.Bind("作弊", "停止敌军AI", false, "面板显示停止/恢复敌军AI按钮");
-        CheatCraftNoConsume = cfg.Bind("作弊", "免费制造", false, "面板显示免费制造开关按钮");
         CheatUnlockCivilian = cfg.Bind("作弊", "解锁平民", false, "面板显示解锁平民按钮");
         CheatAllDestruction = cfg.Bind("作弊", "可拆所有建筑", false, "面板显示可拆所有建筑开关按钮");
     }

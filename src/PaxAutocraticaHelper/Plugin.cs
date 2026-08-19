@@ -6,7 +6,7 @@ using Il2CppInterop.Runtime.Injection;
 
 namespace PaxAutocraticaHelper;
 
-[BepInPlugin("com.hhewww.paxautocraticahelper", "PaxAutocraticaHelper", "0.5.6")]
+[BepInPlugin("com.hhewww.paxautocraticahelper", "PaxAutocraticaHelper", "0.5.7")]
 [BepInProcess("Pax Autocratica.exe")]
 public class PaxPlugin : BasePlugin
 {

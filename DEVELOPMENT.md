@@ -4,7 +4,7 @@
 > 本文档是**唯一的开发入口**：架构、模块、工具链、游戏内部 API、坑与约定都在这。改代码前先读这里。
 > 本手册会随开发**持续更新**（见文末「维护本手册」）。
 
-- 版本：v0.5.6（git HEAD；**已部署到本地档案**于 2026-08-19，旧 0.5.5 已迁入 `<BepInEx>\plugins-disabled\PaxAutocraticaHelper-retired-0.5.5\`）
+- 版本：v0.5.7（git HEAD；2026-08-19 起本地档案已部署验证 v0.5.7；更早基线 v0.5.6，旧版退役到 `<BepInEx>\plugins-disabled\PaxAutocraticaHelper-retired-0.5.5\`）
 - 插件 GUID：`com.hhewww.paxautocraticahelper`
 - 目标框架：net6.0，C# latest，nullable enabled
 - 仓库根：`E:\deepseekharness\BeplnEx-mod-workplace\paxautocratica-mod`
@@ -16,7 +16,7 @@
 一个运行在游戏内的 IMGUI 便利面板 + 快捷键集合：
 
 - **F1 面板只做士兵管理**（列表 / 属性编辑 / 复制士兵 / 应用属性 / 复制时补选词条）
-- 其余功能全部走快捷键（时间倍速 / 完成研究 / 自动保存 / 作弊等），减少误触
+- 其余功能全部走快捷键（时间倍速循环 / 完成研究 / 全体恐惧归零 / 作弊等），减少误触
 - 所有数值与开关走 BepInEx 配置（管理器可表单化编辑）
 
 设计原则（历史迭代沉淀，**不要再打破**）：
@@ -25,7 +25,8 @@
 2. 复制/应用等有副作用操作**不给快捷键**，只在面板按钮触发（v0.5.3 起）；
 3. 作弊按钮与快捷键统一受「显示作弊功能」开关（`CheatSectionVisible`）控制；
 4. 输入一律用 `InputLegacyModule`（旧 Input），不依赖 `Unity.InputSystem` interop（v0.3.0 起）；
-5. 每帧驱动由自注册的 Il2Cpp MonoBehaviour（`PanelBehaviour.Update`）完成，**不挂 Harmony 帧钩子**。
+5. 每帧驱动由自注册的 Il2Cpp MonoBehaviour（`PanelBehaviour.Update`）完成，**不挂 Harmony 帧钩子**；
+6. 能交给游戏系统的（自动保存/自动分配）就不重复做（v0.5.7 起，移除冗余功能）。
 
 ---
 
@@ -64,7 +65,7 @@
   - `Harmony patches applied.` → 补丁生效
   - `PanelBehaviour registered in Il2Cpp.` → 面板宿主就绪
   - 游戏内 F1 开面板。
-- 升级后若配置面板残留旧条目（如老的机器人相关键）：删 cfg 重启即重建。
+- 升级后若配置面板残留旧条目（如 `自动分配间隔(秒)`、`免费制造`）：删 cfg 重启即重建。
 
 **常见故障**：
 
@@ -86,16 +87,15 @@ BasePlugin (PaxPlugin)
  ├─ Harmony.PatchAll                  # 见 §6 Harmony 补丁清单
  └─ ClassInjector.RegisterTypeInIl2Cpp<PanelBehaviour> + AddComponent
        └─ PanelBehaviour (MonoBehaviour)
-             ├─ Update() → FrameHook.Update()      # 每帧：延迟词条 + 列表刷新 + 轮询 + 自动分配 + 按键
+             ├─ Update() → FrameHook.Update()      # 每帧：列表刷新 + 轮询 + 按键（时间循环/研究/恐惧/作弊）
              └─ OnGUI() → GuiHook.DrawPanel()      # IMGUI 面板绘制（读 SoldierManager 状态）
 核心静态服务（游戏内所有模块都是 static class，无实例）：
-  SoldierManager      # 士兵列表/选择/复制/应用属性/词条应用（核心，见 §5.5）
+  SoldierManager      # 士兵列表/选择/复制/应用属性/恐惧归零（核心，见 §5.5）
   GuiHook             # 面板 UI（读 SoldierManager 的文本框状态写回）
   FrameHook           # 定时与快捷键
-  NpcAutoAssign       # 自动分配
   CheatConsoleExecutor# 执行游戏 CheatConsole 命令（反射 + MethodInfo 缓存）
   AffixFilter         # 特质名过滤（复制时只留正面战斗类）
-  AffixCatalog        # 词条库（WIP，复制时补选词条用）
+  AffixCatalog        # 词条库（WIP，见 §9）
 ```
 
 数据流要点：
@@ -104,6 +104,7 @@ BasePlugin (PaxPlugin)
 - **当前选中**：`CurrentDetailNpcId` + `CurrentDetailNpc`；由 4 个 Harmony 补丁 + 轮询 + 面板点击共同驱动；选中后 `SyncPanelFromCurrent()` 把属性灌进面板文本框。
 - **编辑**：面板文本框（`*Text` 静态字段）→「应用属性」→ `ApplyAttributes()` → 写 `Attribute<int>` 值 → `OnNpcBehaviourChanged?.Invoke(id)` 通知游戏。
 - **复制**：`CopyCurrentSoldier()` → `AddPeople` 命令 → 同步 `TryCaptureNewNpc()`（id > 复制前 max 即新兵）→ 兜底 `AddNpcAttribute` Postfix → `CopyAttributes`（过滤特质）→（WIP）`ApplySelectedAffix`。
+- **恐惧归零**：`SetAllFearZero()`（Ctrl+3）遍历字典把全员 `Fear` 置 0。
 
 ---
 
@@ -111,37 +112,37 @@ BasePlugin (PaxPlugin)
 
 ### 5.1 Plugin.cs（入口）
 
-- `[BepInPlugin("com.hhewww.paxautocraticahelper", ..., "0.5.6")]`，**版本号改这里，README/记忆要同步**。
+- `[BepInPlugin("com.hhewww.paxautocraticahelper", ..., "0.5.7")]`，**版本号改这里，README/记忆要同步**。
 - `internal static bool ShowWindow`：面板可见性（F1 切换）。
 - 加载顺序固定：配置 → Harmony → 注册 PanelBehaviour。
 
 ### 5.2 ModConfig.cs（配置）
 
 - 全部 `ConfigEntry`，节：通用 / 面板 / 自动行为 / 作弊。见 §7 配置表。
-- `CheatSectionVisible` 是作弊总开关（面板按钮 + Ctrl+7/8/9 都受它控制）。
+- `CheatSectionVisible` 是作弊总开关（面板 CTRL+7/8 都受它控制；免费的 Ctrl+9 已于 v0.5.7 移除）。
 
 ### 5.3 FrameHook.cs（每帧驱动）
 
 `PanelBehaviour.Update` 每帧调用 `FrameHook.Update()`，顺序固定：
 
-1. `SoldierManager.ProcessPendingAffix()` —— 延迟词条应用（WIP，见 §5.5）
-2. `SoldierManager.RefreshSoldierList()` —— 列表后台刷新（与面板显示状态无关，独立冷却）
-3. 士兵轮询 `PollCurrentSoldier()`（默认 0.5s）
-4. 全局自动分配 `NpcAutoAssign.AutoAssignAll()`（默认 60s）
-5. 显示延迟过后处理按键：F1 面板开关（打开即 `ForceListRefresh`）；Ctrl+1~0 快捷键
+1. `SoldierManager.RefreshSoldierList()` —— 列表后台刷新（与面板显示状态无关，独立冷却）
+2. 士兵轮询 `PollCurrentSoldier()`（默认 0.5s；游戏点谁面板跟谁）
+3. 显示延迟过后处理按键：F1 面板开关（打开即 `ForceListRefresh` + `SyncFromGameNow` 立即拉取游戏当前选中）；Ctrl+1 时间倍速循环 / Ctrl+2 完成研究 / Ctrl+3 全体恐惧归零 / Ctrl+7/8 作弊。
 
 坑：
 
 - 快捷键只认 Ctrl 组合（`Input.GetKey(LeftControl/RightControl)`），F1 单独。
 - 复制/应用属性**没有**快捷键（v0.5.3 删的，防误触），只能面板按钮。
 - 整体 try/catch，出错日志只打第一条（`_kbReady` 闸，防刷屏）。
+- 时间循环 `CycleTimeScale()`：档位 `{1,2,5,10}`，`_timeScaleIndex` 首发按 `Time.timeScale` 就近取档再前进一步；实际设置走 `CheatConsoleExecutor.SetTimeScale(f)`（GameTime + Unity 双时间）。
 
 ### 5.4 GuiHook.cs（IMGUI 面板）
 
 - `DrawPanel()` 由 `PanelBehaviour.OnGUI` 每帧调用；`PanelEnabled`/`ShowWindow`/显示延迟三重闸。
-- **缩放**：`GUI.matrix = Matrix4x4.Scale(scale)`；注意**拖动标题栏时鼠标坐标换算**（§8 坑）。
+- **缩放**：`GUI.matrix = Matrix4x4.Scale(scale)`；注意**拖动标题栏时鼠标坐标换算**（§13.5）。
 - 不透明背景垫底（`PanelBgTexture`，1×1 纹理拉伸），不再透游戏画面。
 - 布局：快捷键说明 → 士兵列表（120px 滚动）→ 当前详情 → 属性输入框（20 个：等级/经验 + 体力/饱食/心情 + 支持/恐惧/金币 + 工资 + 10 种工作速度，含「采摘速度」）→ 复制/应用按钮 →（WIP）词条选择区 → 状态行。
+- 快捷键说明为静态文本，与 `FrameHook` 绑定一致（v0.5.7：Ctrl+1/2/3/7/8）。
 - OnGui 异常日志已限频（10s 一条），防止每帧刷屏。
 
 ### 5.5 SoldierManager.cs（核心）
@@ -156,8 +157,9 @@ BasePlugin (PaxPlugin)
 
 **选择与跟随**
 - `SelectFromList(id)` / `SelectById(id)` → `TryGetNpcData(id, out npc, true)` → `SyncPanelFromCurrent()`。
-- 4 个 Harmony 补丁保持“游戏里看谁面板就同步谁”（UIManagerSoldier.OnConfirmSoldier、UIPopupSoldierDetail.SetContent、UIManagerSoldier.UpdateContent、UIPopupSoldierDetail.OnShow——后两个用 `Traverse` 读私有字段 `m_npcAttribute` / `m_managerData`）。
+- 4 个 Harmony 补丁保持“游戏里看谁面板就同步谁”（UIManagerSoldier.OnConfirmSoldier、UIPopupSoldierDetail.SetContent、UIManagerSoldier.UpdateContent、UIPopupSoldierDetail.OnShow——后两个用 `Traverse` 读私有字段 `m_npcAttribute` / `m_managerData`）。8/15 更新后这三类方法/字段仍在 interop 中（TypeExplorerPax 复核过）。
 - 轮询 `PollCurrentSoldier()` 兜底（FindObjectOfType 详情弹窗 / 管理页）。
+- `SyncFromGameNow()`（v0.5.7）：F1 打开面板时立即拉取游戏当前选中（详情弹窗 `m_npcAttribute` → 管理页 `ViewDetailNpcId`），无论 id 是否变化都刷新文本框——**免去在 MOD UI 列表里翻名字**。
 
 **复制士兵**`CopyCurrentSoldier()`
 - 前提：已在面板打开一个未死亡士兵详情。
@@ -173,13 +175,17 @@ BasePlugin (PaxPlugin)
 - 20 个文本框逐项 `ApplyIfParsedUInt/Int` 解析后写 `Attribute<int>.Value`（空/解析失败跳过）。
 - 写完全部后 `OnNpcBehaviourChanged?.Invoke(id)` + 状态提示。
 
+**全体恐惧归零** `SetAllFearZero()`（Ctrl+3，v0.5.7）
+- 遍历 `NpcAttributeDic` 全部**非死亡**单位，`Fear.Value = 0`（路径1 Il2Cpp 字典 / 路径2 反射兜底）；完成后 `OnNpcBehaviourChanged` 刷新当前选中 + `SyncPanelFromCurrent`；状态栏显示清零数量。
+
 **词条应用（WIP，未完成）** —— 见 §9。涉及：
 - `SelectedAffix`（面板选择）、`ApplySelectedAffix`（排队延迟 3s，等新兵初始化）→ 执行官方命令 `AddAffixToAllSoldier {affix.Id,1}`（注：**对全体士兵生效**，目前注释即“含新兵”）+ **同步实验2**：`DestroyNpcRuntimeData(npc)` + `CreateNpcAffixData(npc)` 强制重建运行时数据。
 - 还有一批**观察 Hook**（`OnNpcAffixDataRefresh`/`OnCreateNpcAffixData`/`OnRandomSoldierAffixInvoke`/`OnAffixItemCreated`）和 `[AffixDump]` 诊断 dump（`DumpAffixState`/`DumpFirstNpcs`），是排查 8/15 更新后“特质运行时生成、存档 afx=null”的探针 —— **这些是调试期代码，发布前要清理**。
 
-### 5.6 NpcAutoAssign.cs
+### 5.6 ~NpcAutoAssign.cs~（v0.5.7 移除）
 
-- 触发游戏全局分配：`NpcEnvironmentManager.OnAutoAssignPeople?.Invoke()`；null（未进主城）→ 报错返回。日志 30s 限频。
+- 原功能：触发游戏全局分配 `NpcEnvironmentManager.OnAutoAssignPeople?.Invoke()`（null=未进主城）。
+- v0.5.7 起**删除**：游戏系统自带自动分配，插件不再干预。移除：Ctrl+0 快捷键、60s 周期定时、`自动分配间隔(秒)` 配置项；源码文件已从仓库删除。
 
 ### 5.7 CheatConsoleExecutor.cs（命令执行）
 
@@ -189,7 +195,8 @@ BasePlugin (PaxPlugin)
   3. `ResolveMethod`（按方法名+参数个数反射，MethodInfo 缓存到 `_cache`）。
   4. **必须 `rawObj.Cast<CheatConsole>()` 再 `method.Invoke(console, ...)`**，否则 `TargetException: Object does not match target type`（v0.4.0 关键修复）。
   5. `ConvertArgs` 自动类型强转（bool/int/float/string 互通，`Coerce`）。
-- `Exec(command)` 字符串入口：`SetTimeScale <n>` 特殊处理（同时设 `GameTimeManager.TimeScale`/`SettingsTimeScale`/`Time.timeScale`）；其余空格拆分后 `RunCommand(方法名, 参数串)`。限频：**相同命令 0.3s 内重复忽略**（原版行为），不同命令不限（v0.5.2 修过连按被吞）。
+- `SetTimeScale(float)`（v0.5.7 抽出）：设置游戏时间（`GameTimeManager.TimeScale`/`SettingsTimeScale`）与 `Time.timeScale`。
+- `Exec(command)` 字符串入口：`SetTimeScale <n>` 特殊处理（调 `SetTimeScale`）；其余空格拆分后 `RunCommand(方法名, 参数串)`。限频：**相同命令 0.3s 内重复忽略**（原版行为），不同命令不限（v0.5.2 修过连按被吞）。
 
 ### 5.8 AffixFilter.cs（特质过滤）
 
@@ -229,17 +236,17 @@ BasePlugin (PaxPlugin)
 | 节 | 键 | 默认 | 说明 |
 |---|---|---|---|
 | 通用 | 启用便利面板 | true | F1 面板总开关 |
-| 通用 | 显示作弊功能 | false | 开则面板与 Ctrl+7/8/9 生效 |
+| 通用 | 显示作弊功能 | false | 开则面板与 Ctrl+7/8 生效 |
 | 面板 | 界面缩放 | 2 | GUI.matrix 缩放 |
 | 面板 | 位置 X / 位置 Y | 20 / 60 | 左上角（GUI 空间坐标，拖动后自动反写） |
 | 面板 | 宽度 / 高度 | 330 / 470 | 缩放前逻辑像素 |
 | 面板 | 显示延迟(秒) | 8 | 进游戏后多久可显示面板 |
-| 自动行为 | 自动分配间隔(秒) | 60 | 0=关闭 |
 | 自动行为 | 士兵轮询间隔(秒) | 0.5 | 面板同步频率 |
 | 自动行为 | 士兵列表刷新间隔(秒) | 2 | 列表冷却 |
-| 作弊 | God Mode / Daddy Mode / 停止敌军AI / 免费制造 / 解锁平民 / 可拆所有建筑 | 全 false | 面板显示对应作弊按钮（受「显示作弊功能」门控） |
+| 作弊 | God Mode / Daddy Mode / 停止敌军AI / 解锁平民 / 可拆所有建筑 | 全 false | 面板显示对应作弊按钮（受「显示作弊功能」门控） |
 
-> 作弊节里的键目前仅作面板按钮/快捷命令的门控配置；面板里对应按钮在「显示作弊功能」开启后由 GuiHook 按 `Cheat` 前缀开关显示（见 README）。改键名要同步 `ModConfig.cs` 与清理旧 cfg。
+> v0.5.7 起删除的 cfg 键：`自动分配间隔(秒)`（自动分配功能移除）、`免费制造`（触发游戏 VFX 报错，见 §13.14）。旧 cfg 里残留这些键时删 cfg 重启即可重建。
+> 作弊节里的键目前仅作门控配置；面板里对应按钮在「显示作弊功能」开启后由 GuiHook 按 `Cheat` 前缀开关显示（见 README）。改键名要同步 `ModConfig.cs` 与清理旧 cfg。
 
 ---
 
@@ -247,20 +254,22 @@ BasePlugin (PaxPlugin)
 
 | 快捷键 | 功能 | 说明 |
 |---|---|---|
-| F1 | 开关面板 | 打开即强制刷新列表 |
-| Ctrl+1/2/3/4 | 时间 2x/5x/10x/1x | 走 SetTimeScale 特殊路径（GameTime+Unity 双时间） |
-| Ctrl+5 | 完成所有研究 | `CompleteAllResearching` |
-| Ctrl+6 | 自动保存 | `AutoSave` |
-| Ctrl+7/8/9 | God/Daddy/免费制造 | **受「显示作弊功能」开关门控**（`MaybeCheat`，10s 限频拒绝日志） |
-| Ctrl+0 | 智能自动分配 | 直接 `AutoAssignAll` |
+| F1 | 开关面板 | 打开即强制刷新列表 + `SyncFromGameNow` 拉取游戏当前选中 |
+| Ctrl+1 | 时间倍速**循环** 1x/2x/5x/10x | `CycleTimeScale()` → `SetTimeScale`（GameTime+Unity 双时间） |
+| Ctrl+2 | 完成所有研究 | `CompleteAllResearching` |
+| Ctrl+3 | 所有单位恐惧归零 | `SoldierManager.SetAllFearZero()` |
+| Ctrl+7 | God Mode | **受「显示作弊功能」门控**（`MaybeCheat`，10s 限频拒绝日志） |
+| Ctrl+8 | Daddy Mode | 同上 |
 
 复制士兵 / 应用属性：**无快捷键**（只走面板按钮）。
+
+> v0.5.7 移除：Ctrl+4 时间 1x（并入循环）、Ctrl+5 完成研究（改 Ctrl+2）、Ctrl+6 自动保存（游戏自带）、Ctrl+9 免费制造（触发 VFX 报错，见 §13.14）、Ctrl+0 智能分配（游戏自带）。
 
 ---
 
 ## 9. 当前进行中的工作（重要）
 
-工作区有一批**未提交**改动，是「复制时补选/应用词条」功能的探路版（截至接手时状态）：
+「复制时补选/应用词条」探路版 **已封存为 git stash**（`git stash@{0}`，2026-08-15，含未跟踪 `AffixCatalog.cs`；恢复 `git stash pop`）。截至封存状态：
 
 | 文件 | 状态 | 内容 |
 |---|---|---|
@@ -272,11 +281,9 @@ BasePlugin (PaxPlugin)
 
 **风险提示**：
 
-- `ProcessPendingAffix` 里的「同步实验2」`DestroyNpcRuntimeData + CreateNpcAffixData` 会**强制销毁并重建 NPC 运行时词条数据**，属于实验性强力手段，可能影响存档/预算/NPC 状态 —— 结论未定，**不要把当前工作区当发布版直接 build.ps1 部署**。
+- `ProcessPendingAffix` 里的「同步实验2」`DestroyNpcRuntimeData + CreateNpcAffixData` 会**强制销毁并重建 NPC 运行时词条数据**，属于实验性强力手段，可能影响存档/预算/NPC 状态 —— 结论未定。
 - `AddAffixToAllSoldier {id,1}` 作用对象是**全体士兵**（命令语义如此），与“给单个新兵加词条”的目标存在偏差；需要改造成单兵接口（游戏侧若没有，就要 Harmony 注入或构造单兵词条数据）。
-- 一票 `[AffixDump]` / 观察 Hook 是排查 8/15 更新后“特质运行时生成、存档 `afx=null`”用的探针，发布前清理。
-
-**下一步候选（待用户确认优先级）**：见交付说明末尾的建议。原则上与用户对齐后再动这份 WIP。
+- 一票 `[AffixDump]` / 观察 Hook 是排查 8/15 更新后“特质运行时生成、存档 `afx=null`”用的探针，恢复开发时**不要在未收敛前直接发布**。
 
 ---
 
@@ -318,9 +325,9 @@ interop 程序集 → 拷到 <活动档案 BepInEx>\interop\   （csproj HintPat
 | MetaRegScan | `tools\MetaRegScan`（`<GameAssembly.dll> <global-metadata.dat>`） | 扫 TypeDefinitionCount / PE 段 / 方法注册（构建 method↔token 映射用） |
 | ItemNameLookup | `tools\ItemNameLookup`（`<dll>`） | 在 interop 里找 `EFAS_ITEM` 枚举（核对词条/物品 id） |
 | SaveDump | `tools\SaveDump`（`<saveFile> [collection] [maxDocs]`） | LiteDB 存档浏览器（游戏存档是 LiteDB） |
-| TypeExplorerPax | `tools\TypeExplorerPax`（`<k1,k2,...> [--methods] [--fields]`） | interop/cīr 全程序集断词搜索类型，**自动解析隔离档案 interop**（可用作每日查 API 的首选工具） |
+| TypeExplorerPax | `tools\TypeExplorerPax`（`<k1,k2,...> [--methods] [--fields]`） | interop 全程序集断词搜索类型，**自动解析隔离档案 interop**（可用作每日查 API 的首选工具） |
 
-> `tools/gen/interop` 存有全套 tagged interop；`tools/gen/decomp-npc`、`tools/gen/decomp-npc2`、`tools/gen/decomp-cheat` 是对应重点程序集的 decompiled 参考源码（npc2 是最细/最新的一份，npc 与 cheat 按需对照）。游戏更新 → 整条链重跑 → 用 `HashGen` 刷新缓存键，否则运行时会因 `global-metadata` 哈希变化而重建 interop。decomp 目录主要在 `tools/gen/*` 下，**不要用工具的临时输出直接当插件引用**。
+> `tools/gen/interop` 存有全套 tagged interop；`tools/gen/decomp-npc`、`tools/gen/decomp-npc2`、`tools/gen/decomp-cheat` 是对应重点程序集的 decompiled 参考源码（npc2 是最细/最新的一份，npc 与 cheat 按需对照）。部分程序集（如 `EFAS.Universe`、`EFAS.VFXManager`）**没有 dump**，查这类类型直接用 `TypeExplorerPax` 看 interop。游戏更新 → 整条链重跑 → 用 `HashGen` 刷新缓存键，否则运行时会因 `global-metadata` 哈希变化而重建 interop。decomp 目录主要在 `tools/gen/*` 下，**不要用工具的临时输出直接当插件引用**。
 
 ---
 
@@ -353,6 +360,12 @@ interop 程序集 → 拷到 <活动档案 BepInEx>\interop\   （csproj HintPat
 **特质配置表**
 - `DataObjNpcAffix`（`EFAS.Utils.dll` / `EFAS.EFAS_DATA`）：`GetNpcAffixList() → List<NpcAffix>`，条目含 `m_affixId`(int)、`m_localKey`(字符串 = `CORPSAFFIX_*` 枚举名)；`DataObjNpcAffixLv` 提供等级数据。配置表 Addressables 延迟加载 → `AffixFilter` 30s 重试。
 
+**制造/VFX（需求6 参考，无 decomp，来自 TypeExplorerPax）**
+- `ServerCraftManager`（`EFAS.Universe.dll`，`EFAS.Universe.Server`）：`static bool CraftNoConsume`（免费制造开关，setter 行 39 会触发 DROP_VFX_GREEN 特效事件）
+- `ConstantVFXSetting`（`EFAS.VFXManager.dll`，`EFAS.VFXManager.Data`）：`SendEvent(int _eventId)`、`SpawnVfx(int _vfxId)`、`m_capacity`/`Capacity`（默认 256）
+- `VFXPlaySystem`（`EFAS.VFXManager.dll`）：`LateUpdate()`、`TryGetConstantSetting(int, ConstantVFXSetting&)`、`static Instance`
+- ⚠️ 已知游戏 bug：`CraftNoConsume=true` 时 `DROP_VFX_GREEN` 作为**常量特效每帧重播且缺可见性守卫**，spawn 数 400 > capacity 256 被截断防崩（非致命，日志噪音）。**v0.5.7 起插件不再提供免费制造入口**。
+
 **游戏/版本**
 - Unity 6000.0.37；`GameAssembly.dll` 要配 `global-metadata.dat`（就在 `<GameDir>\Pax Autocratica_Data\il2cpp_data\Metadata`，Cpp2IL 用）。
 
@@ -373,6 +386,8 @@ interop 程序集 → 拷到 <活动档案 BepInEx>\interop\   （csproj HintPat
 11. **可空性警告**：ModConfig 与 static 字段大量 CS8618（null! 初始化），当前是警告不是错误，改配置时新字段记得处理。
 12. **隔离档案部署**：同一档案目录里只留一个当前版 dll（+ .bak），文件名固定 `PaxAutocraticaHelper.dll`；别用手动带版本后缀的旧文件（会造成双加载/残留）。
 13. **代码/LF 规范化**：git 在提交时会提示 LF→CRLF，正常现象（core.autocrlf）；提交时留意别把 `bin/obj`、`tools/` 带进去（`.gitignore` 已含）。
+14. **免费制造 → VFX 超容量报错（v0.5.7）**：`ServerCraftManager.CraftNoConsume=true` 会让 `DROP_VFX_GREEN` 常量特效每帧重播且缺可见性守卫，`VFXPlaySystem.LateUpdate` 报 `spawn count 400 exceeds capacity 256`（游戏自带截断防崩）。**mod 已移除免费制造入口（Ctrl+9 + 配置项）**；若仍看到该报错，说明是在游戏内自带开关/控制台开的免费制造 —— 属游戏 bug，非 mod 触发。
+15. **`UpdateNpcSeat` 警告**：`[Scene][W] UpdateNpcSeat ... PVP_BUILDING_TRAINING_CAMP_102 ...` 是模拟层座位同步的良性噪音（本地/期望 npc id 差异），与 mod 无关，**不需要处理**（v0.5.7 确认）。
 
 ---
 
