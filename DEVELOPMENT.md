@@ -4,7 +4,7 @@
 > 本文档是**唯一的开发入口**：架构、模块、工具链、游戏内部 API、坑与约定都在这。改代码前先读这里。
 > 本手册会随开发**持续更新**（见文末「维护本手册」）。
 
-- 版本：v0.5.6（git HEAD；注意线上已部署档案目前是 0.5.5）
+- 版本：v0.5.6（git HEAD；**已部署到本地档案**于 2026-08-19，旧 0.5.5 已迁入 `<BepInEx>\plugins-disabled\PaxAutocraticaHelper-retired-0.5.5\`）
 - 插件 GUID：`com.hhewww.paxautocraticahelper`
 - 目标框架：net6.0，C# latest，nullable enabled
 - 仓库根：`E:\deepseekharness\BeplnEx-mod-workplace\paxautocratica-mod`
@@ -287,7 +287,7 @@ BasePlugin (PaxPlugin)
 3. 备份旧插件为 `.dll.bak` → 复制新 dll → **SHA256 校验**（不一致即失败退出）。
 4. 部署被锁（游戏运行中）→ 明确 HINT 提示关游戏。
 
-> 产物名恒为 `PaxAutocraticaHelper.dll`（AssemblyName）。历史上有过带版本后缀的手动部署（`PaxAutocraticaHelper-0.5.5.dll`），**不要混用**：同一目录里同名/异名多版本会让 BepInEx 重复加载或老版本残留不生效。清理原则 = 目录里只留一个当前版 dll（+ 可选 .bak）。
+> 产物名恒为 `PaxAutocraticaHelper.dll`（AssemblyName）。历史上有过带版本后缀的手动部署（`PaxAutocraticaHelper-0.5.5.dll`），**不要混用**：同一目录里同名/异名多版本会让 BepInEx 重复加载或老版本残留不生效。清理原则 = 目录里只留一个当前版 dll（+ 可选 .bak）；旧版 dll 移入 `plugins-disabled\`（BepInEx 不会加载该目录）留档即可，如 `plugins-disabled\PaxAutocraticaHelper-retired-0.5.5\`。
 
 ---
 
