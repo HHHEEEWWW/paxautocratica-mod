@@ -95,6 +95,10 @@
       <HintPath>$(BepDir)\interop\EFAS.UIFramework.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="EFAS.UI">
+      <HintPath>$(BepDir)\interop\EFAS.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="EFAS.UI.Meta">
       <HintPath>$(BepDir)\interop\EFAS.UI.Meta.dll</HintPath>
       <Private>false</Private>

@@ -217,7 +217,8 @@ BasePlugin (PaxPlugin)
 
 | 目标 | 补丁 | 作用 |
 |---|---|---|
-| `UIManagerSoldier.OnConfirmSoldier(int, GridItemInfo)` | Postfix `OnSoldierConfirm` | 士兵列表确认选中 → 同步面板 |
+| `UIGridItemList.OnLeftClickItem` | Postfix `OnGridSoldierLeftClick` | **v0.5.7 点选联动核心**：士兵页点谁面板跟谁（只取 `__instance`，`GetCurrentSelect()` 读选中，防 Il2Cpp 结构体参数注入失效） |
+| `UIManagerSoldier.OnConfirmSoldier(int, GridItemInfo)` | Postfix `OnSoldierConfirm` | 士兵列表确认选中 → 同步面板（注：GridItemInfo 是结构体，参数注入可能不可靠，已由上面列表 Hook 兜底） |
 | `UIPopupSoldierDetail.SetContent(UIPopupSoldierDetailData)` | Postfix `OnDetailSetContent` | 详情弹窗数据 → 同步面板 |
 | `UIManagerSoldier.UpdateContent(UISoldierManagerData)` | Postfix `OnSoldierManagerUpdate` | 管理页更新（`ViewDetailNpcId`）→ 同步 |
 | `UIPopupSoldierDetail.OnShow()` | Postfix `OnDetailShow` | 弹窗显示，Traverse 读私有 `m_npcAttribute` → 同步 |
@@ -356,6 +357,8 @@ interop 程序集 → 拷到 <活动档案 BepInEx>\interop\   （csproj HintPat
 - `UIManagerSoldier`（`EFAS.UIFramework.dll`）：`OnConfirmSoldier(int, GridItemInfo)`、`UpdateContent(UISoldierManagerData)`、`m_managerData`
 - `UIPopupSoldierDetail`：`SetContent(UIPopupSoldierDetailData)`、`OnShow()`、私有字段 `m_npcAttribute`
 - `UISoldierManagerData.ViewDetailNpcId`、`UIPopupSoldierDetailData.ItemInfo.CharacterId`、`GridItemInfo`
+- `UIGridItemList`（`EFAS.UI.dll`，**需在 csproj 引用 EFAS.UI**）：`OnLeftClickItem(int, GridItemInfo)`、`GetCurrentSelect() → GridItemInfo`、`SelectedIndex`、`OnLeftClick/OnConfirmAction`；`m_soldierListUList` 字段类型就是它
+- `GridItemInfo`（`EFAS.UI.Meta.dll`，`Multiverse.EFAS.UI.Meta`，**ValueType**）：`Uuid`、`ServerId`、`CharacterId`、`RedTipId`——点选联动的 CharacterId 来源
 
 **特质配置表**
 - `DataObjNpcAffix`（`EFAS.Utils.dll` / `EFAS.EFAS_DATA`）：`GetNpcAffixList() → List<NpcAffix>`，条目含 `m_affixId`(int)、`m_localKey`(字符串 = `CORPSAFFIX_*` 枚举名)；`DataObjNpcAffixLv` 提供等级数据。配置表 Addressables 延迟加载 → `AffixFilter` 30s 重试。
@@ -388,6 +391,7 @@ interop 程序集 → 拷到 <活动档案 BepInEx>\interop\   （csproj HintPat
 13. **代码/LF 规范化**：git 在提交时会提示 LF→CRLF，正常现象（core.autocrlf）；提交时留意别把 `bin/obj`、`tools/` 带进去（`.gitignore` 已含）。
 14. **免费制造 → VFX 超容量报错（v0.5.7）**：`ServerCraftManager.CraftNoConsume=true` 会让 `DROP_VFX_GREEN` 常量特效每帧重播且缺可见性守卫，`VFXPlaySystem.LateUpdate` 报 `spawn count 400 exceeds capacity 256`（游戏自带截断防崩）。**mod 已移除免费制造入口（Ctrl+9 + 配置项）**；若仍看到该报错，说明是在游戏内自带开关/控制台开的免费制造 —— 属游戏 bug，非 mod 触发。
 15. **`UpdateNpcSeat` 警告**：`[Scene][W] UpdateNpcSeat ... PVP_BUILDING_TRAINING_CAMP_102 ...` 是模拟层座位同步的良性噪音（本地/期望 npc id 差异），与 mod 无关，**不需要处理**（v0.5.7 确认）。
+16. **Il2Cpp 结构体参数注入不可靠（v0.5.7 点选联动修复）**：给 `OnConfirmSoldier(int, GridItemInfo)` 之类的补丁注入 `GridItemInfo`（ValueType）参数可能拿到默认值/失效导致“点击不跟随”。对策=补丁只用 `__instance`，再通过 interop 方法读状态（如 `UIGridItemList.GetCurrentSelect()` 取 `CharacterId`）。保留结构体参数补丁可作冗余，但不依赖它。
 
 ---
 

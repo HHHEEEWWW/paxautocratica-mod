@@ -240,6 +240,33 @@ internal static class SoldierManager
         }
     }
 
+    /// <summary>
+    /// 点选联动（v0.5.7 修复）：游戏「士兵管理」页点任一单位 → 面板立即跟随。
+    /// 挂在士兵列表（UIGridItemList.OnLeftClickItem）上，只取 __instance，用 GetCurrentSelect()
+    /// 读当前选中的 CharacterId——绕开 Il2Cpp 结构体参数注入可能导致的失效问题。
+    /// </summary>
+    [HarmonyPatch(typeof(UIGridItemList), "OnLeftClickItem")]
+    [HarmonyPostfix]
+    private static void OnGridSoldierLeftClick(UIGridItemList __instance)
+    {
+        try
+        {
+            if (__instance == null) return;
+            // 只处理“士兵管理”页的列表（列表自身或祖先挂 UIManagerSoldier）
+            if (__instance.GetComponentInParent<UIManagerSoldier>() == null) return;
+            var sel = __instance.GetCurrentSelect();
+            var id = sel.CharacterId;
+            if (id <= 0 || (id == CurrentDetailNpcId && CurrentDetailNpc != null)) return;
+            CurrentDetailNpcId = id;
+            SelectById(id);
+            PaxPlugin.Log.LogInfo($"[Soldier] 点选联动(士兵页列表): id={id}");
+        }
+        catch (Exception ex)
+        {
+            PaxPlugin.Log.LogError($"[Soldier] OnGridSoldierLeftClick: {ex}");
+        }
+    }
+
     [HarmonyPatch(typeof(UIPopupSoldierDetail), "SetContent")]
     [HarmonyPostfix]
     private static void OnDetailSetContent(UIPopupSoldierDetailData _data)
@@ -301,6 +328,7 @@ internal static class SoldierManager
     {
         try
         {
+            // 1. 详情弹窗（最精确）
             var popup = UnityEngine.Object.FindObjectOfType<UIPopupSoldierDetail>();
             if (popup != null)
             {
@@ -318,14 +346,26 @@ internal static class SoldierManager
                 }
             }
 
+            // 2. 管理页 ViewDetailNpcId
             var manager = UnityEngine.Object.FindObjectOfType<UIManagerSoldier>();
             if (manager != null)
             {
                 var data = Traverse.Create(manager).Field("m_managerData").GetValue<UISoldierManagerData>();
                 var id = data?.ViewDetailNpcId ?? 0;
-                if (id <= 0 || id == CurrentDetailNpcId) return;
-                CurrentDetailNpcId = id;
-                SelectById(id);
+                if (id > 0 && id != CurrentDetailNpcId)
+                {
+                    CurrentDetailNpcId = id;
+                    SelectById(id);
+                    return;
+                }
+            }
+
+            // 3. 管理页列表“当前选中”（点选联动最可靠信号：不依赖 confirm 回调/详情弹窗）
+            var selId = GetManagerSelectedNpcId();
+            if (selId > 0 && selId != CurrentDetailNpcId)
+            {
+                CurrentDetailNpcId = selId;
+                SelectById(selId);
             }
         }
         catch (Exception ex)
@@ -335,8 +375,30 @@ internal static class SoldierManager
     }
 
     /// <summary>
+    /// 从游戏「士兵管理」页列表的当前选中读取单位 Id（GetCurrentSelect → CharacterId）；
+    /// 拿不到返回 0。这是“点了谁”最直接的状态源。
+    /// </summary>
+    private static long GetManagerSelectedNpcId()
+    {
+        try
+        {
+            var manager = UnityEngine.Object.FindObjectOfType<UIManagerSoldier>();
+            if (manager == null) return 0;
+            var list = Traverse.Create(manager).Field("m_soldierListUList").GetValue<UIGridItemList>();
+            if (list == null) return 0;
+            var sel = list.GetCurrentSelect();
+            return sel.CharacterId > 0 ? sel.CharacterId : 0;
+        }
+        catch (Exception ex)
+        {
+            PaxPlugin.Log.LogError($"[Soldier] GetManagerSelectedNpcId: {ex.GetType().Name}: {ex.Message}");
+        }
+        return 0;
+    }
+
+    /// <summary>
     /// 立即从游戏当前选中同步到面板（F1 打开面板时调用）：
-    /// 优先读详情弹窗的 m_npcAttribute，其次读士兵管理页的 ViewDetailNpcId，
+    /// 优先详情弹窗 m_npcAttribute → 管理页 ViewDetailNpcId → 管理页列表当前选中；
     /// 无论 id 是否变化都刷新属性文本框。这样在游戏点谁、MOD 面板就跟谁，不用去列表翻名字。
     /// </summary>
     internal static void SyncFromGameNow()
@@ -368,7 +430,18 @@ internal static class SoldierManager
                     CurrentDetailNpc = npc;
                     PaxPlugin.Log.LogInfo($"[Soldier] 打开面板-管理页: id={id} name={npc.Name}（已同步到面板）");
                     SyncPanelFromCurrent();
+                    return;
                 }
+            }
+
+            // 兜底：管理页列表当前选中
+            var selId = GetManagerSelectedNpcId();
+            if (selId > 0 && NpcSimulatorManager.TryGetNpcData(selId, out var selNpc, true) && selNpc != null)
+            {
+                CurrentDetailNpcId = selId;
+                CurrentDetailNpc = selNpc;
+                PaxPlugin.Log.LogInfo($"[Soldier] 打开面板-列表选中: id={selId} name={selNpc.Name}（已同步到面板）");
+                SyncPanelFromCurrent();
             }
         }
         catch (Exception ex)
