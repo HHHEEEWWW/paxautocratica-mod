@@ -60,7 +60,6 @@ internal static class GuiHook
             if (ev.type == EventType.MouseDown && ev.button == 0)
             {
                 var hit = titleRect.Contains(ev.mousePosition);
-                PaxPlugin.Log.LogInfo($"[Gui] MouseDown at {ev.mousePosition} titleRect=({titleRect.x},{titleRect.y},{titleRect.width},{titleRect.height}) hit={hit} scale={scale}");
                 if (hit)
                 {
                     _dragging = true;
@@ -72,7 +71,6 @@ internal static class GuiHook
             {
                 _dragging = false;
                 ev.Use();
-                PaxPlugin.Log.LogInfo($"[Gui] 拖动结束 panel=({ModConfig.PanelX.Value},{ModConfig.PanelY.Value})");
             }
             // 拖动中：Input.mousePosition 是屏幕坐标（左下原点），转 GUI 空间（左上原点 / scale）
             if (_dragging)

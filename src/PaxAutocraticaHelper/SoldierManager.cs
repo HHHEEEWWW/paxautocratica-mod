@@ -34,6 +34,47 @@ internal static class SoldierManager
 
     private static float _listRefreshTimer;
 
+    // ================= UI 实例缓存（v0.5.8 性能修复） =================
+    // Unity 重载的 == null：目标对象销毁后自动判空，缓存天然自失效。
+    // 命中缓存可避免 FindObjectOfType 的全场景扫描（大场景单次数毫秒，
+    // 旧版轮询每 0.5 秒扫 2-3 次，是 FPS 视角周期性卡顿的来源之一）。
+    private static UIPopupSoldierDetail? _popupCache;
+    private static UIManagerSoldier? _managerCache;
+    private static UIGridItemList? _managerListCache;
+
+    private static UIPopupSoldierDetail? FindPopup()
+    {
+        if (_popupCache == null) _popupCache = UnityEngine.Object.FindObjectOfType<UIPopupSoldierDetail>();
+        return _popupCache;
+    }
+
+    private static UIManagerSoldier? FindManager()
+    {
+        if (_managerCache == null) _managerCache = UnityEngine.Object.FindObjectOfType<UIManagerSoldier>();
+        return _managerCache;
+    }
+
+    /// <summary>士兵管理页的列表实例（经 manager 私有字段解析并缓存）</summary>
+    private static UIGridItemList? GetManagerList()
+    {
+        var manager = FindManager();
+        if (manager == null)
+        {
+            _managerListCache = null;
+            return null;
+        }
+        if (_managerListCache != null) return _managerListCache;
+        try
+        {
+            _managerListCache = Traverse.Create(manager).Field("m_soldierListUList").GetValue<UIGridItemList>();
+        }
+        catch (Exception ex)
+        {
+            PaxPlugin.Log.LogError($"[Soldier] GetManagerList: {ex.GetType().Name}: {ex.Message}");
+        }
+        return _managerListCache;
+    }
+
     // 面板文本框状态
     internal static string LevelText = "";
     internal static string ExpText = "";
@@ -329,7 +370,7 @@ internal static class SoldierManager
         try
         {
             // 1. 详情弹窗（最精确）
-            var popup = UnityEngine.Object.FindObjectOfType<UIPopupSoldierDetail>();
+            var popup = FindPopup();
             if (popup != null)
             {
                 var npc = Traverse.Create(popup).Field("m_npcAttribute").GetValue<NpcAttribute>();
@@ -347,7 +388,7 @@ internal static class SoldierManager
             }
 
             // 2. 管理页 ViewDetailNpcId
-            var manager = UnityEngine.Object.FindObjectOfType<UIManagerSoldier>();
+            var manager = FindManager();
             if (manager != null)
             {
                 var data = Traverse.Create(manager).Field("m_managerData").GetValue<UISoldierManagerData>();
@@ -382,9 +423,7 @@ internal static class SoldierManager
     {
         try
         {
-            var manager = UnityEngine.Object.FindObjectOfType<UIManagerSoldier>();
-            if (manager == null) return 0;
-            var list = Traverse.Create(manager).Field("m_soldierListUList").GetValue<UIGridItemList>();
+            var list = GetManagerList();
             if (list == null) return 0;
             var sel = list.GetCurrentSelect();
             return sel.CharacterId > 0 ? sel.CharacterId : 0;
@@ -405,7 +444,7 @@ internal static class SoldierManager
     {
         try
         {
-            var popup = UnityEngine.Object.FindObjectOfType<UIPopupSoldierDetail>();
+            var popup = FindPopup();
             if (popup != null)
             {
                 var npc = Traverse.Create(popup).Field("m_npcAttribute").GetValue<NpcAttribute>();
@@ -419,7 +458,7 @@ internal static class SoldierManager
                 }
             }
 
-            var manager = UnityEngine.Object.FindObjectOfType<UIManagerSoldier>();
+            var manager = FindManager();
             if (manager != null)
             {
                 var data = Traverse.Create(manager).Field("m_managerData").GetValue<UISoldierManagerData>();

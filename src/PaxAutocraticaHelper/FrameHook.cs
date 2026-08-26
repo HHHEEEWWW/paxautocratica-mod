@@ -25,16 +25,21 @@ internal static class FrameHook
         {
             var now = Time.realtimeSinceStartup;
 
-            // 士兵列表后台定时刷新（独立于面板显示状态：
-            // 不依赖 DrawPanel 帧循环，流放/新增士兵在面板外也持续同步）
-            SoldierManager.RefreshSoldierList();
-
-            // 士兵轮询（同步面板：游戏点谁 MOD 面板跟谁）
-            var poll = ModConfig.SoldierPollInterval.Value;
-            if (poll > 0f && now - soldierPollTimer > poll)
+            // v0.5.8 性能修复：面板未显示时跳过列表刷新与士兵轮询。
+            // 轮询里的 FindObjectOfType 是全场景扫描（大场景单次数毫秒），
+            // 面板关着时这些工作毫无意义；F1 打开时会立即 ForceListRefresh + SyncFromGameNow 补齐状态。
+            if (PaxPlugin.PanelVisible)
             {
-                soldierPollTimer = now;
-                SoldierManager.PollCurrentSoldier();
+                // 士兵列表后台定时刷新（独立于面板绘制帧循环，流放/新增士兵持续同步）
+                SoldierManager.RefreshSoldierList();
+
+                // 士兵轮询（同步面板：游戏点谁 MOD 面板跟谁）
+                var poll = ModConfig.SoldierPollInterval.Value;
+                if (poll > 0f && now - soldierPollTimer > poll)
+                {
+                    soldierPollTimer = now;
+                    SoldierManager.PollCurrentSoldier();
+                }
             }
 
             if (Time.time < ModConfig.PanelShowDelay.Value) return;

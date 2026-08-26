@@ -45,7 +45,9 @@ internal static class ModConfig
         PanelShowDelay = cfg.Bind("面板", "显示延迟(秒)", 8f, "游戏启动后多少秒才允许显示面板");
 
         // ===== 自动行为 =====
-        SoldierPollInterval = cfg.Bind("自动行为", "士兵轮询间隔(秒)", 0.5f, "每隔多久轮询一次当前查看的士兵并同步面板");
+        // v0.5.8 性能修复：默认轮询间隔 0.5→3 秒。点选联动由 Harmony 补丁实时完成，
+        // 轮询只是兜底，无需高频。注意：旧配置文件里已写入的值不会被新默认覆盖。
+        SoldierPollInterval = cfg.Bind("自动行为", "士兵轮询间隔(秒)", 3f, "每隔多久轮询一次当前查看的士兵并同步面板（仅面板显示时生效；点选联动走 Harmony 实时补丁，此处只是兜底）");
         SoldierListRefreshInterval = cfg.Bind("自动行为", "士兵列表刷新间隔(秒)", 2f, "士兵列表的刷新冷却时间");
 
         // ===== 作弊（默认隐藏） =====

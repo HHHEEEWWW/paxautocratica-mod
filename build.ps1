@@ -21,6 +21,19 @@ if (Test-Path $Ini) {
     }
 }
 if (-not (Test-Path "$BepDir\core\BepInEx.Core.dll")) {
+    # 回退：游戏目录已是原版（BepInEx 已卸载）→ 从管理器插件库的隔离档案取引用
+    # （档案整树含 core/ 与 interop/，构建与部署都指向它；重装框架后该档案即生效目标）
+    $ManagerRoots = @('E:\trainer\BepInExManager\data')
+    foreach ($root in $ManagerRoots) {
+        $hit = Get-ChildItem "$root\plugin-library" -Directory -Filter 'pax-autocratica-*' -ErrorAction SilentlyContinue |
+            ForEach-Object { Get-ChildItem $_.FullName -Directory -ErrorAction SilentlyContinue } |
+            ForEach-Object { Join-Path $_.FullName 'BepInEx' } |
+            Where-Object { Test-Path "$_\core\BepInEx.Core.dll" } |
+            Select-Object -First 1
+        if ($hit) { $BepDir = $hit; Write-Host "Manager library profile detected: $BepDir"; break }
+    }
+}
+if (-not (Test-Path "$BepDir\core\BepInEx.Core.dll")) {
     Write-Host "ERROR: BepInEx framework not found under $BepDir"
     exit 1
 }
